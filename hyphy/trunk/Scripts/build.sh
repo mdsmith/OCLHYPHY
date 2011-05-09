@@ -10,7 +10,7 @@ if [ $# -ne 1 -a $# -ne 2 ]
 then
 	TARGET_NAME="HELP";
 else
-	if [ $1 != "SP" -a $1 != "MP" -a $1 != "MP2"  -a $1 != "MPI" -a $1 != "DEBUG" -a $1 != "LIBRARY" -a $1 != "DEV" -a $1 != "PS3" -a $1 != "DMALLOC" ] 
+	if [ $1 != "SP" -a $1 != "MP" -a $1 != "MP2"  -a $1 != "MPI" -a $1 != "DEBUG" -a $1 != "LIBRARY" -a $1 != "DEV" -a $1 != "PS3" -a $1 != "DMALLOC" -a $1 != "OCL" ] 
 	then
 		$TARGET_NAME = "HELP"
 	else
@@ -100,7 +100,7 @@ fi
 
 # END MODIFY
 
-COMPILER_FLAGS=$COMPILER_FLAGS" -D _SLKP_LFENGINE_REWRITE_ ";
+COMPILER_FLAGS=$COMPILER_FLAGS" -D _SLKP_LFENGINE_REWRITE_ -lOpenCL -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc ";
 
 echo "Checking for curl";
 
@@ -164,6 +164,16 @@ then
 	echo "|Building a multi-threaded HYPHYKernelMP|"
 	echo "+---------------------------------------+"
 	COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__"
+fi
+
+if [ $1 = "OCL" ] 
+then
+	TARGET_NAME="HYPHYMP";
+	LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -lOpenCL -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/lib -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/obj/release";
+	echo "+----------------------------------------------------------------------+"
+	echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
+	echo "+----------------------------------------------------------------------+"
+	COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp "
 fi
 
 if [ $1 = "MP2" ] 
