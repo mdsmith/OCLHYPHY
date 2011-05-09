@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/745/hyphy/trunk/TopologyInference
+END
+Sequential_Addition
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Sequential_Addition
+END
+Star_Decomposition
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Star_Decomposition
+END
+Exhaustive_Search
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Exhaustive_Search
+END
+Neighbor_Joining
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/745/hyphy/trunk/TopologyInference/Neighbor_Joining
+END

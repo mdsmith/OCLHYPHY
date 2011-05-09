@@ -1,0 +1,65 @@
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/983/hyphy/trunk/ChartAddIns/DBAddIns
+END
+ToSQLFlatFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToSQLFlatFile.bf
+END
+ToTabFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToTabFile.bf
+END
+FromSQLFlatFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/FromSQLFlatFile.bf
+END
+ToFrontierFastaFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToFrontierFastaFile.bf
+END
+ToChartWindow.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToChartWindow.bf
+END
+HY_DBW_TemplateList
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/HY_DBW_TemplateList
+END
+DescriptiveStats.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/983/hyphy/trunk/ChartAddIns/DBAddIns/DescriptiveStats.bf
+END
+ToFastaFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToFastaFile.bf
+END
+ToConsole.bf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToConsole.bf
+END
+ToFastaFileFromPandit.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/12/hyphy/trunk/ChartAddIns/DBAddIns/ToFastaFileFromPandit.bf
+END

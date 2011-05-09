@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/svn/!svn/ver/849/hyphy/TestSuite/HMM
+END
+RateHMM.bf
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/849/hyphy/TestSuite/HMM/RateHMM.bf
+END
+SmallNuc.bf
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/837/hyphy/TestSuite/HMM/SmallNuc.bf
+END
+SmallNucRel.bf
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/437/hyphy/TestSuite/HMM/SmallNucRel.bf
+END
+TreeHMM.bf
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/849/hyphy/TestSuite/HMM/TreeHMM.bf
+END

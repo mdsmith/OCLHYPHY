@@ -1,0 +1,23 @@
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Support
+END
+branchSwappingFunctions.bf
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Support/branchSwappingFunctions.bf
+END
+doNNISwap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Support/doNNISwap.bf
+END
+doSPRSwap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/17/hyphy/trunk/TopologyInference/Support/doSPRSwap.bf
+END

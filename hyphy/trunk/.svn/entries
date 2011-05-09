@@ -1,0 +1,88 @@
+10
+
+dir
+1115
+http://www.datam0nk3y.org/svn/hyphy/trunk
+http://www.datam0nk3y.org/svn
+
+
+
+2011-04-22T23:48:35.018279Z
+1113
+sergei
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+8514abd6-fbe8-4789-b558-0fd185ebde39
+
+SubstitutionModels
+dir
+
+GUIElements
+dir
+
+TreeAddIns
+dir
+
+ChartAddIns
+dir
+
+Scripts
+dir
+
+Help
+dir
+
+Core
+dir
+
+NewerFunctionality
+dir
+
+SubstitutionClasses
+dir
+
+TopologyInference
+dir
+
+GeneticCodes
+dir
+
+TemplateBatchFiles
+dir
+
+UserAddins
+dir
+
+Library
+dir
+
+HeadlessLink
+dir
+
+Mains
+dir
+
+SWIG
+dir
+
+data
+dir
+
+RegEx
+dir
+
+DatapanelAddIns
+dir
+

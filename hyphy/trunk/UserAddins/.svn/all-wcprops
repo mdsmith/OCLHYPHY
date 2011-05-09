@@ -1,0 +1,101 @@
+K 25
+svn:wc:ra_dav:version-url
+V 40
+/svn/!svn/ver/969/hyphy/trunk/UserAddins
+END
+RecombinationProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/RecombinationProcessor.bf
+END
+MeanPairwiseDivergence
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/969/hyphy/trunk/UserAddins/MeanPairwiseDivergence
+END
+GenBankSequences
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/492/hyphy/trunk/UserAddins/GenBankSequences
+END
+SimulateFromLF
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/SimulateFromLF
+END
+ExportLikelihoodFunction
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/ExportLikelihoodFunction
+END
+MapSubstitutions
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/392/hyphy/trunk/UserAddins/MapSubstitutions
+END
+BatchFileByURL
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/BatchFileByURL
+END
+ModelCounter
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/ModelCounter
+END
+LRT
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/LRT
+END
+Tidbits
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/Tidbits
+END
+ListUserFunctions
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/ListUserFunctions
+END
+MeanPairwiseDivergenceSubset
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/MeanPairwiseDivergenceSubset
+END
+CountSubstitutions
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/510/hyphy/trunk/UserAddins/CountSubstitutions
+END
+BranchLengthCI
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/BranchLengthCI
+END
+CodonMutationToTreeMapper
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/CodonMutationToTreeMapper
+END
+AAContent
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/19/hyphy/trunk/UserAddins/AAContent
+END

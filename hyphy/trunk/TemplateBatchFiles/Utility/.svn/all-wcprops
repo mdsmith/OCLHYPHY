@@ -1,0 +1,101 @@
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/Utility
+END
+LocalMGREV.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Utility/LocalMGREV.bf
+END
+DescriptiveStatistics.bf
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/svn/!svn/ver/1055/hyphy/trunk/TemplateBatchFiles/Utility/DescriptiveStatistics.bf
+END
+WriteDelimitedFiles.bf
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/867/hyphy/trunk/TemplateBatchFiles/Utility/WriteDelimitedFiles.bf
+END
+ProbabilityDistributions.bf
+K 25
+svn:wc:ra_dav:version-url
+V 84
+/svn/!svn/ver/888/hyphy/trunk/TemplateBatchFiles/Utility/ProbabilityDistributions.bf
+END
+NJ.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/1057/hyphy/trunk/TemplateBatchFiles/Utility/NJ.bf
+END
+HXB2Mapper.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/984/hyphy/trunk/TemplateBatchFiles/Utility/HXB2Mapper.bf
+END
+PostScript.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/339/hyphy/trunk/TemplateBatchFiles/Utility/PostScript.bf
+END
+PS_Plotters.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/1055/hyphy/trunk/TemplateBatchFiles/Utility/PS_Plotters.bf
+END
+ReadDelimitedFiles.bf
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/Utility/ReadDelimitedFiles.bf
+END
+DBTools.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/952/hyphy/trunk/TemplateBatchFiles/Utility/DBTools.ibf
+END
+AncestralMapper.bf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/964/hyphy/trunk/TemplateBatchFiles/Utility/AncestralMapper.bf
+END
+CodonTools.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Utility/CodonTools.bf
+END
+LocalMGREVMLFreqs.bf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/1001/hyphy/trunk/TemplateBatchFiles/Utility/LocalMGREVMLFreqs.bf
+END
+GrabBag.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/Utility/GrabBag.bf
+END
+CoalescentPostProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 82
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Utility/CoalescentPostProcessor.bf
+END
+TreeFunctions.bf
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/970/hyphy/trunk/TemplateBatchFiles/Utility/TreeFunctions.bf
+END

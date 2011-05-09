@@ -1,0 +1,47 @@
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/401/hyphy/trunk/GUIElements/Platform%20Include/Windows
+END
+HYPlatformWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/!svn/ver/401/hyphy/trunk/GUIElements/Platform%20Include/Windows/HYPlatformWindow.h
+END
+semaphore.h
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/semaphore.h
+END
+HYPlatformButtonMenu.h
+K 25
+svn:wc:ra_dav:version-url
+V 89
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/HYPlatformButtonMenu.h
+END
+sched.h
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/sched.h
+END
+HYPlatformGraphicPane.h
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/HYPlatformGraphicPane.h
+END
+pthread.h
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/pthread.h
+END
+HYPlatformComponent.h
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Include/Windows/HYPlatformComponent.h
+END

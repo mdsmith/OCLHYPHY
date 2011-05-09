@@ -1,0 +1,53 @@
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses
+END
+HYModelWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYModelWindow.h
+END
+HYParameterTable.h
+K 25
+svn:wc:ra_dav:version-url
+V 93
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYParameterTable.h
+END
+HYChartWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 90
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYChartWindow.h
+END
+HYDataPanel.h
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYDataPanel.h
+END
+HYConsoleWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 92
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYConsoleWindow.h
+END
+HYDBWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYDBWindow.h
+END
+HYGWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYGWindow.h
+END
+HYTreePanel.h
+K 25
+svn:wc:ra_dav:version-url
+V 88
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/WindowClasses/HYTreePanel.h
+END

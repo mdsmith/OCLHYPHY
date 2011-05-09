@@ -1,0 +1,89 @@
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins
+END
+RecombinationProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/RecombinationProcessor.bf
+END
+BatchFileByURL
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/BatchFileByURL
+END
+MeanPairwiseDivergence
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/MeanPairwiseDivergence
+END
+ModelCounter
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/ModelCounter
+END
+LRT
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/LRT
+END
+Tidbits
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/Tidbits
+END
+ListUserFunctions
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/ListUserFunctions
+END
+MeanPairwiseDivergenceSubset
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/MeanPairwiseDivergenceSubset
+END
+SimulateFromLF
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/SimulateFromLF
+END
+ExportLikelihoodFunction
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/ExportLikelihoodFunction
+END
+BranchLengthCI
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/BranchLengthCI
+END
+CodonMutationToTreeMapper
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/CodonMutationToTreeMapper
+END
+AAContent
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/AAContent
+END
+MapSubstitutions
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/MapSubstitutions
+END

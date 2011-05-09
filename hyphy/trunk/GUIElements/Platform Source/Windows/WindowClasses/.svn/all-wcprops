@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svn/!svn/ver/151/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses
+END
+HYPlatformModelWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 105
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformModelWindow.cpp
+END
+HYPlatformParameterTable.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 108
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformParameterTable.cpp
+END
+HYPlatformChartWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 105
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformChartWindow.cpp
+END
+HYPlatformDataPanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 103
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformDataPanel.cpp
+END
+HYPlatformConsoleWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 107
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformConsoleWindow.cpp
+END
+HYPlatformTWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 103
+/svn/!svn/ver/151/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformTWindow.cpp
+END
+HYPlatformDBWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 102
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformDBWindow.cpp
+END
+HYPlatformGWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformGWindow.cpp
+END
+HYPlatformTreePanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 103
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformTreePanel.cpp
+END
+HYPlatformBootsrapWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 108
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformBootsrapWindow.cpp
+END
+HYPlatformPWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/Windows/WindowClasses/HYPlatformPWindow.cpp
+END

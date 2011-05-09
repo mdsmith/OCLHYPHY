@@ -1,0 +1,131 @@
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins
+END
+InferredAASubstitutionsCounter
+K 25
+svn:wc:ra_dav:version-url
+V 83
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/InferredAASubstitutionsCounter
+END
+RNARateMatrix
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/RNARateMatrix
+END
+ModelFitSummary
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/ModelFitSummary
+END
+ModelFitSummaryAA
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/ModelFitSummaryAA
+END
+PredictivePosteriorP
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/PredictivePosteriorP
+END
+ExpsPerDirection
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/ExpsPerDirection
+END
+PartitionBranchesByClasses
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/PartitionBranchesByClasses
+END
+SimulateFromLF
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/SimulateFromLF
+END
+dS and dN factors
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/dS%20and%20dN%20factors
+END
+FilterAssignments
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/FilterAssignments
+END
+ColorPSTree
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/ColorPSTree
+END
+CodonMutationToTreeMapper.bf
+K 25
+svn:wc:ra_dav:version-url
+V 81
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/CodonMutationToTreeMapper.bf
+END
+DashPSTree
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/DashPSTree
+END
+AAMutationCounter
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/AAMutationCounter
+END
+LocaldNdS
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/LocaldNdS
+END
+dNanddSTrees.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/dNanddSTrees.bf
+END
+SimulateAndTabDN_DS
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/SimulateAndTabDN_DS
+END
+TreeLengthConstraint
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/TreeLengthConstraint
+END
+Multiclass DN DS inference
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/Multiclass%20DN%20DS%20inference
+END
+ConvergentAndParallel
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/ConvergentAndParallel
+END
+CopyBranchLengths
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/419/hyphy/last1.0/UserAddins/OldAddins/CopyBranchLengths
+END

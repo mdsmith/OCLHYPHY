@@ -1,0 +1,1163 @@
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/1105/hyphy/trunk/TemplateBatchFiles
+END
+AnalyzeNucProtData2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AnalyzeNucProtData2.bf
+END
+_MFReader_.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/_MFReader_.ibf
+END
+SeqAlignmentNuc.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/1011/hyphy/trunk/TemplateBatchFiles/SeqAlignmentNuc.bf
+END
+globalChecker.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/globalChecker.ibf
+END
+MFPSreader.def
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MFPSreader.def
+END
+dNdSBivariateRateAnalysis.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/789/hyphy/trunk/TemplateBatchFiles/dNdSBivariateRateAnalysis.bf
+END
+ModelTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/499/hyphy/trunk/TemplateBatchFiles/ModelTest.bf
+END
+ModelSelectorRNA.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ModelSelectorRNA.bf
+END
+KHTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/119/hyphy/trunk/TemplateBatchFiles/KHTest.bf
+END
+LZ_Complexity.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/LZ_Complexity.bf
+END
+doNNISwap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/doNNISwap.bf
+END
+ModelSelectorAAProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ModelSelectorAAProcessor.bf
+END
+CodonToProtein.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/1060/hyphy/trunk/TemplateBatchFiles/CodonToProtein.bf
+END
+dNdSRateAnalysis.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/1105/hyphy/trunk/TemplateBatchFiles/dNdSRateAnalysis.bf
+END
+BivariateCodonRateAnalysis.bf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/817/hyphy/trunk/TemplateBatchFiles/BivariateCodonRateAnalysis.bf
+END
+RelativeRatio.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/RelativeRatio.bf
+END
+categoryEcho.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/categoryEcho.bf
+END
+StripStopCodons.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/StripStopCodons.bf
+END
+LocalMolClock.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/LocalMolClock.bf
+END
+relratioBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/relratioBootstrap.bf
+END
+GADatedClockProcessorM.bf
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GADatedClockProcessorM.bf
+END
+ModelSelectorCodon.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/710/hyphy/trunk/TemplateBatchFiles/ModelSelectorCodon.bf
+END
+SimilarityPlot.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/200/hyphy/trunk/TemplateBatchFiles/SimilarityPlot.bf
+END
+SequentialAddition.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SequentialAddition.bf
+END
+post_lfprofile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_lfprofile.bf
+END
+SingleBreakpointRecomb.bf
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SingleBreakpointRecomb.bf
+END
+post_counting.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_counting.bf
+END
+PairwiseDNDS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PairwiseDNDS.bf
+END
+TopologySearchConstrained.bf
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TopologySearchConstrained.bf
+END
+LocalBranchSiteTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/LocalBranchSiteTest.bf
+END
+ModelSelectorCodon.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/600/hyphy/trunk/TemplateBatchFiles/ModelSelectorCodon.ibf
+END
+CleanGaps.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/322/hyphy/trunk/TemplateBatchFiles/CleanGaps.bf
+END
+MFPositiveSelectionPooled.bf
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MFPositiveSelectionPooled.bf
+END
+DatedTipsMolecularClock.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/DatedTipsMolecularClock.bf
+END
+PartitionDataFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PartitionDataFile.bf
+END
+ClusterByDistanceRange.bf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/1060/hyphy/trunk/TemplateBatchFiles/ClusterByDistanceRange.bf
+END
+BGM.bf
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/986/hyphy/trunk/TemplateBatchFiles/BGM.bf
+END
+GADatedClockProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GADatedClockProcessor.bf
+END
+relrateBootstrapL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/relrateBootstrapL.bf
+END
+GARD_GA_CHC.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GARD_GA_CHC.ibf
+END
+MGvsGY.bf
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MGvsGY.bf
+END
+NucModelCompare.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/1034/hyphy/trunk/TemplateBatchFiles/NucModelCompare.bf
+END
+DistanceMatrix_Splits.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/DistanceMatrix_Splits.bf
+END
+GARD.bf
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/1068/hyphy/trunk/TemplateBatchFiles/GARD.bf
+END
+RateClassCounter.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/RateClassCounter.bf
+END
+ModelSelectorRNA_1.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ModelSelectorRNA_1.bf
+END
+DirectionalREL_MF.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/DirectionalREL_MF.bf
+END
+SGASimProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SGASimProcessor.bf
+END
+TreeCorrelationCoefficients.bf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TreeCorrelationCoefficients.bf
+END
+SiteRates2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/486/hyphy/trunk/TemplateBatchFiles/SiteRates2.bf
+END
+Kernel_support.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Kernel_support.ibf
+END
+post_saveResults.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_saveResults.bf
+END
+queryTree.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/734/hyphy/trunk/TemplateBatchFiles/queryTree.bf
+END
+SeqAlignmentTop75.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SeqAlignmentTop75.bf
+END
+CodonModelCompare.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/414/hyphy/trunk/TemplateBatchFiles/CodonModelCompare.bf
+END
+MaxChi2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MaxChi2.bf
+END
+post_variance.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_variance.bf
+END
+CompareSelectivePressureIVL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/CompareSelectivePressureIVL.bf
+END
+CleanStopCodons.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/714/hyphy/trunk/TemplateBatchFiles/CleanStopCodons.bf
+END
+partitionSequences.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/partitionSequences.ibf
+END
+qndhelper2_mf.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/qndhelper2_mf.ibf
+END
+post_viewResults.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/100/hyphy/trunk/TemplateBatchFiles/post_viewResults.bf
+END
+TopologySearch.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TopologySearch.bf
+END
+SimmondsAI.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SimmondsAI.bf
+END
+readIndexFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/readIndexFile.bf
+END
+ConvertDataFile.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ConvertDataFile.bf
+END
+qndhelper1.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/1094/hyphy/trunk/TemplateBatchFiles/qndhelper1.ibf
+END
+GA_CHC_kernel.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GA_CHC_kernel.ibf
+END
+qndhelper3.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/qndhelper3.ibf
+END
+ModelSelectorBranch.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ModelSelectorBranch.bf
+END
+dNdSDistributionComparison.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/dNdSDistributionComparison.bf
+END
+SGIvL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/1071/hyphy/trunk/TemplateBatchFiles/SGIvL.bf
+END
+ClusterAnalysis.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/101/hyphy/trunk/TemplateBatchFiles/ClusterAnalysis.bf
+END
+BranchSiteREL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/BranchSiteREL.bf
+END
+AnalyzeCodonDataMPI.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AnalyzeCodonDataMPI.bf
+END
+dNdSResultProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/553/hyphy/trunk/TemplateBatchFiles/dNdSResultProcessor.bf
+END
+_MSCOneStep.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/684/hyphy/trunk/TemplateBatchFiles/_MSCOneStep.ibf
+END
+last.date
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/last.date
+END
+PairwiseRelativeRate.bf
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PairwiseRelativeRate.bf
+END
+SeqAlignmentProt.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/1060/hyphy/trunk/TemplateBatchFiles/SeqAlignmentProt.bf
+END
+BranchClassDNDS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/935/hyphy/trunk/TemplateBatchFiles/BranchClassDNDS.bf
+END
+dNdSBivariateRateAnalysis_CompareDS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 86
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/dNdSBivariateRateAnalysis_CompareDS.bf
+END
+PositiveSelectionLI.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PositiveSelectionLI.bf
+END
+GateauxMR.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/817/hyphy/trunk/TemplateBatchFiles/GateauxMR.bf
+END
+post_dNdS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_dNdS.bf
+END
+qndhelper1_mf.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/qndhelper1_mf.ibf
+END
+SequentialAddition.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SequentialAddition.ibf
+END
+SplitSequencesByPattern.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SplitSequencesByPattern.bf
+END
+Phylohandbook.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Phylohandbook.bf
+END
+AddABias.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/714/hyphy/trunk/TemplateBatchFiles/AddABias.ibf
+END
+post_ancestors.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_ancestors.bf
+END
+SelectionLRT.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SelectionLRT.bf
+END
+post_npbs.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/733/hyphy/trunk/TemplateBatchFiles/post_npbs.bf
+END
+TestClade.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TestClade.bf
+END
+post_sampler.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_sampler.bf
+END
+post_covariance.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_covariance.bf
+END
+GA_CHC_Binary.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GA_CHC_Binary.ibf
+END
+UpperBound.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/UpperBound.bf
+END
+postprocessors.lst
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/postprocessors.lst
+END
+CodonUsageBias.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/CodonUsageBias.bf
+END
+SeqAlignment.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/1060/hyphy/trunk/TemplateBatchFiles/SeqAlignment.bf
+END
+simpleBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/simpleBootstrap.bf
+END
+BranchSwap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/BranchSwap.bf
+END
+LRTRecombTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/LRTRecombTest.bf
+END
+dNdSRateAnalysis_MF.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/1010/hyphy/trunk/TemplateBatchFiles/dNdSRateAnalysis_MF.bf
+END
+SlatkinMaddison-2parts.bf
+K 25
+svn:wc:ra_dav:version-url
+V 73
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SlatkinMaddison-2parts.bf
+END
+dSdNTreeTools.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/891/hyphy/trunk/TemplateBatchFiles/dSdNTreeTools.ibf
+END
+SeqAlignShared.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/967/hyphy/trunk/TemplateBatchFiles/SeqAlignShared.ibf
+END
+Kernel_PCA.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Kernel_PCA.bf
+END
+GADatedClock.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/703/hyphy/trunk/TemplateBatchFiles/GADatedClock.bf
+END
+StarDecomposition.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/StarDecomposition.bf
+END
+TestBranchDNDS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TestBranchDNDS.bf
+END
+SandNSAmbigs.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/552/hyphy/trunk/TemplateBatchFiles/SandNSAmbigs.bf
+END
+distanceRMethodNPBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/distanceRMethodNPBootstrap.bf
+END
+SimpleMutationCounter.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SimpleMutationCounter.bf
+END
+NeighborJoining.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/NeighborJoining.bf
+END
+GA_CHC.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/888/hyphy/trunk/TemplateBatchFiles/GA_CHC.ibf
+END
+AnalyzeCodonData.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/647/hyphy/trunk/TemplateBatchFiles/AnalyzeCodonData.bf
+END
+Gateaux2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Gateaux2.bf
+END
+SGEmulator.bf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/516/hyphy/trunk/TemplateBatchFiles/SGEmulator.bf
+END
+doSPRSwap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/doSPRSwap.bf
+END
+SSRatesTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/511/hyphy/trunk/TemplateBatchFiles/SSRatesTest.bf
+END
+ModelSelectorCodonProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/!svn/ver/1075/hyphy/trunk/TemplateBatchFiles/ModelSelectorCodonProcessor.bf
+END
+LHT.bf
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/LHT.bf
+END
+heuristicMethodNPBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/heuristicMethodNPBootstrap.bf
+END
+branchSwappingFunctions.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/branchSwappingFunctions.bf
+END
+MolecularClock.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MolecularClock.bf
+END
+dNdSDistributionComparisonPartitions.bf
+K 25
+svn:wc:ra_dav:version-url
+V 87
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/dNdSDistributionComparisonPartitions.bf
+END
+StrandGRMTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/506/hyphy/trunk/TemplateBatchFiles/StrandGRMTest.bf
+END
+CodonBivariateRateProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/575/hyphy/trunk/TemplateBatchFiles/CodonBivariateRateProcessor.bf
+END
+_BMS_Aux.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/_BMS_Aux.ibf
+END
+dNdSDistributionComparisonMF.bf
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/dNdSDistributionComparisonMF.bf
+END
+SubtreeSelectionComparison.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SubtreeSelectionComparison.bf
+END
+files.lst
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/1044/hyphy/trunk/TemplateBatchFiles/files.lst
+END
+GADatedClock.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/702/hyphy/trunk/TemplateBatchFiles/GADatedClock.ibf
+END
+DistanceMatrix.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/988/hyphy/trunk/TemplateBatchFiles/DistanceMatrix.bf
+END
+GARecomb.bf
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/GARecomb.bf
+END
+SampleProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SampleProcessor.bf
+END
+AnalyzeNucDataFreq.bf
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AnalyzeNucDataFreq.bf
+END
+FitnessAAModels.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/FitnessAAModels.bf
+END
+CompareSelectivePressure.bf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/CompareSelectivePressure.bf
+END
+selectModelParameters.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/selectModelParameters.bf
+END
+YangNielsenBranchSite2005.bf
+K 25
+svn:wc:ra_dav:version-url
+V 77
+/svn/!svn/ver/459/hyphy/trunk/TemplateBatchFiles/YangNielsenBranchSite2005.bf
+END
+SlidingNucWindow.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SlidingNucWindow.bf
+END
+chooseDistanceFormula.def
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/720/hyphy/trunk/TemplateBatchFiles/chooseDistanceFormula.def
+END
+TreeTools.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/979/hyphy/trunk/TemplateBatchFiles/TreeTools.ibf
+END
+relrateBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/relrateBootstrap.bf
+END
+AAModelComparison.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AAModelComparison.bf
+END
+Gateaux.bf
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Gateaux.bf
+END
+pairwiseDistanceEstimator.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/988/hyphy/trunk/TemplateBatchFiles/pairwiseDistanceEstimator.ibf
+END
+pairwiseDistanceEstimatorCounter.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 85
+/svn/!svn/ver/722/hyphy/trunk/TemplateBatchFiles/pairwiseDistanceEstimatorCounter.ibf
+END
+PARRIS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/1072/hyphy/trunk/TemplateBatchFiles/PARRIS.bf
+END
+DirectionalREL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/889/hyphy/trunk/TemplateBatchFiles/DirectionalREL.bf
+END
+molclockBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/molclockBootstrap.bf
+END
+ReduceDataSetMatrix.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/ReduceDataSetMatrix.bf
+END
+SiteRates.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/486/hyphy/trunk/TemplateBatchFiles/SiteRates.bf
+END
+RelativeRateL.bf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/RelativeRateL.bf
+END
+SGEmulator_MF.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/516/hyphy/trunk/TemplateBatchFiles/SGEmulator_MF.bf
+END
+QuickSelectionDetectionMF.bf
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/QuickSelectionDetectionMF.bf
+END
+post_sns.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/429/hyphy/trunk/TemplateBatchFiles/post_sns.bf
+END
+PairwiseSiteDiversity.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PairwiseSiteDiversity.bf
+END
+NielsenYang.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/993/hyphy/trunk/TemplateBatchFiles/NielsenYang.bf
+END
+454.bf
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/988/hyphy/trunk/TemplateBatchFiles/454.bf
+END
+BS2007.bf
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/BS2007.bf
+END
+GARDProcessor.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/1069/hyphy/trunk/TemplateBatchFiles/GARDProcessor.bf
+END
+qndhelper2.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/1091/hyphy/trunk/TemplateBatchFiles/qndhelper2.ibf
+END
+qndhelper4.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/qndhelper4.ibf
+END
+PartitionRateComparison.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PartitionRateComparison.bf
+END
+WebUpdate.bf
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/WebUpdate.bf
+END
+SlatkinMaddison.bf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SlatkinMaddison.bf
+END
+distanceMethodNPBootstrap.bf
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/distanceMethodNPBootstrap.bf
+END
+MEDS.bf
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/1043/hyphy/trunk/TemplateBatchFiles/MEDS.bf
+END
+WANC.bf
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/WANC.bf
+END
+post_pbs.bf
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/post_pbs.bf
+END
+F_ST.bf
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/590/hyphy/trunk/TemplateBatchFiles/F_ST.bf
+END
+MFPositiveSelection.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MFPositiveSelection.bf
+END
+TestCladeMeans.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/TestCladeMeans.bf
+END
+AnalyzeNucDataFreq2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AnalyzeNucDataFreq2.bf
+END
+binomial.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/902/hyphy/trunk/TemplateBatchFiles/binomial.ibf
+END
+MergeSites.bf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MergeSites.bf
+END
+_CMS_Aux.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/623/hyphy/trunk/TemplateBatchFiles/_CMS_Aux.ibf
+END
+AnalyzeNucProtData.bf
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/671/hyphy/trunk/TemplateBatchFiles/AnalyzeNucProtData.bf
+END
+MergeSequences.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MergeSequences.bf
+END
+Kernel_k_means.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Kernel_k_means.bf
+END
+PairwiseRelativeRatio.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/PairwiseRelativeRatio.bf
+END
+Plato.bf
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Plato.bf
+END
+AnalyzeDiNucData.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/AnalyzeDiNucData.bf
+END
+QuickSelectionDetection.bf
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/1102/hyphy/trunk/TemplateBatchFiles/QuickSelectionDetection.bf
+END
+MolClockAllRoots.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/MolClockAllRoots.bf
+END
+_tipDater.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/_tipDater.ibf
+END
+SlidingWindowAnalysis.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SlidingWindowAnalysis.bf
+END
+SingleBreakpointRecomb-2.bf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/SingleBreakpointRecomb-2.bf
+END
+RelativeRate.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/RelativeRate.bf
+END

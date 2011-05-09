@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/svn/!svn/ver/419/hyphy/last1.0/Mains
+END
+main-win.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Mains/main-win.cpp
+END
+main-mac.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Mains/main-mac.cpp
+END
+main-unix.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/svn/!svn/ver/419/hyphy/last1.0/Mains/main-unix.cpp
+END
+hyphyunixutils.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/419/hyphy/last1.0/Mains/hyphyunixutils.cpp
+END
+main-GTK.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Mains/main-GTK.cpp
+END

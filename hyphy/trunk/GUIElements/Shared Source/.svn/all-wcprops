@@ -1,0 +1,95 @@
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/1113/hyphy/trunk/GUIElements/Shared%20Source
+END
+HYObjectInspector.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/!svn/ver/1074/hyphy/trunk/GUIElements/Shared%20Source/HYObjectInspector.cpp
+END
+HYDialogDefs.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/1113/hyphy/trunk/GUIElements/Shared%20Source/HYDialogDefs.cpp
+END
+HYComponent.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Shared%20Source/HYComponent.cpp
+END
+HYEventTypes.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Shared%20Source/HYEventTypes.cpp
+END
+HYWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/1081/hyphy/trunk/GUIElements/Shared%20Source/HYWindow.cpp
+END
+HYSharedMain.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/275/hyphy/trunk/GUIElements/Shared%20Source/HYSharedMain.cpp
+END
+HYDBWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/491/hyphy/trunk/GUIElements/Shared%20Source/HYDBWindow.cpp
+END
+HYTreePanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/1113/hyphy/trunk/GUIElements/Shared%20Source/HYTreePanel.cpp
+END
+HYBaseGUI.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Shared%20Source/HYBaseGUI.cpp
+END
+HYGraphicPane.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/929/hyphy/trunk/GUIElements/Shared%20Source/HYGraphicPane.cpp
+END
+HYParameterTable.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 79
+/svn/!svn/ver/1081/hyphy/trunk/GUIElements/Shared%20Source/HYParameterTable.cpp
+END
+HYModelWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/1074/hyphy/trunk/GUIElements/Shared%20Source/HYModelWindow.cpp
+END
+HYDataPanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/1074/hyphy/trunk/GUIElements/Shared%20Source/HYDataPanel.cpp
+END
+HYChartWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/1096/hyphy/trunk/GUIElements/Shared%20Source/HYChartWindow.cpp
+END
+HYConsoleWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 78
+/svn/!svn/ver/1083/hyphy/trunk/GUIElements/Shared%20Source/HYConsoleWindow.cpp
+END

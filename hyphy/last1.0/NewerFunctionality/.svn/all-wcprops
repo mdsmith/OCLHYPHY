@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality
+END
+scfg.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/scfg.cpp
+END
+bgm.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/bgm.cpp
+END
+Net.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/Net.cpp
+END
+bgm2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/bgm2.cpp
+END
+scfg.h
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/scfg.h
+END
+HYNetInterface.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/HYNetInterface.cpp
+END
+bgm.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/bgm.h
+END
+SerangNet.h
+K 25
+svn:wc:ra_dav:version-url
+V 62
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/SerangNet.h
+END
+HYNetInterface.h
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/419/hyphy/last1.0/NewerFunctionality/HYNetInterface.h
+END

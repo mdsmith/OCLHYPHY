@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations
+END
+IntermediateProtein.bf
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations/IntermediateProtein.bf
+END
+SmallCodon.bf
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations/SmallCodon.bf
+END
+IntermediateCodon.bf
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations/IntermediateCodon.bf
+END
+IntermediateNuc.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations/IntermediateNuc.bf
+END
+LargeNuc.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/944/hyphy/TestSuite/SimpleOptimizations/LargeNuc.bf
+END
+TwoSequenceTest.bf
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/437/hyphy/TestSuite/SimpleOptimizations/TwoSequenceTest.bf
+END

@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid
+END
+Fitness.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid/Fitness.mdl
+END
+mtREV.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid/mtREV.mdl
+END
+Jones.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid/Jones.mdl
+END
+EIAA.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid/EIAA.mdl
+END
+Dayhoff.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 69
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Aminoacid/Dayhoff.mdl
+END

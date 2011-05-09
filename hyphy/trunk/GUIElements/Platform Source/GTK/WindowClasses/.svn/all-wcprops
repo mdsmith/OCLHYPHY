@@ -1,0 +1,71 @@
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses
+END
+HYPlatformModelWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformModelWindow.cpp
+END
+HYPlatformParameterTable.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformParameterTable.cpp
+END
+HYPlatformChartWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 101
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformChartWindow.cpp
+END
+HYPlatformDataPanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformDataPanel.cpp
+END
+HYPlatformConsoleWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 103
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformConsoleWindow.cpp
+END
+HYPlatformTWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformTWindow.cpp
+END
+HYPlatformDBWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 98
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformDBWindow.cpp
+END
+HYPlatformGWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformGWindow.cpp
+END
+HYPlatformTreePanel.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 99
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformTreePanel.cpp
+END
+HYPlatformBootsrapWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 104
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformBootsrapWindow.cpp
+END
+HYPlatformPWindow.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svn/!svn/ver/1/hyphy/trunk/GUIElements/Platform%20Source/GTK/WindowClasses/HYPlatformPWindow.cpp
+END

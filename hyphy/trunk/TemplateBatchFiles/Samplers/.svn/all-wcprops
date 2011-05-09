@@ -1,0 +1,29 @@
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/1080/hyphy/trunk/TemplateBatchFiles/Samplers
+END
+sir.bf
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/10/hyphy/trunk/TemplateBatchFiles/Samplers/sir.bf
+END
+srs.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/1080/hyphy/trunk/TemplateBatchFiles/Samplers/srs.ibf
+END
+lhc.bf
+K 25
+svn:wc:ra_dav:version-url
+V 65
+/svn/!svn/ver/1052/hyphy/trunk/TemplateBatchFiles/Samplers/lhc.bf
+END
+lhc_supp.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/1020/hyphy/trunk/TemplateBatchFiles/Samplers/lhc_supp.ibf
+END

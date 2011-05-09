@@ -1,0 +1,41 @@
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide
+END
+EFVEstimated.ibf
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/EFVEstimated.ibf
+END
+HKY85.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 68
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/HKY85.mdl
+END
+REVBetaGamma.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/REVBetaGamma.mdl
+END
+REV.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/REV.mdl
+END
+F81.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/F81.mdl
+END
+TrN.mdl
+K 25
+svn:wc:ra_dav:version-url
+V 66
+/svn/!svn/ver/16/hyphy/trunk/SubstitutionModels/Nucleotide/TrN.mdl
+END

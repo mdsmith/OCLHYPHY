@@ -1,0 +1,53 @@
+K 25
+svn:wc:ra_dav:version-url
+V 38
+/svn/!svn/ver/850/hyphy/TestSuite/data
+END
+2.tree
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/437/hyphy/TestSuite/data/2.tree
+END
+2.prot
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/437/hyphy/TestSuite/data/2.prot
+END
+HMM2_synthetic.fas
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/850/hyphy/TestSuite/data/HMM2_synthetic.fas
+END
+HMM4_synthetic.fas
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/850/hyphy/TestSuite/data/HMM4_synthetic.fas
+END
+fluHA.nex
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/437/hyphy/TestSuite/data/fluHA.nex
+END
+2.fas
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/svn/!svn/ver/437/hyphy/TestSuite/data/2.fas
+END
+fluHA_codon.nex
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/437/hyphy/TestSuite/data/fluHA_codon.nex
+END
+HIVenvSweden.seq
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/437/hyphy/TestSuite/data/HIVenvSweden.seq
+END

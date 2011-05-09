@@ -1,0 +1,47 @@
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/svn/!svn/ver/419/hyphy/last1.0/Scripts
+END
+buildFromSVN.sh
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/buildFromSVN.sh
+END
+buildMinGWFromSVN.sh
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/buildMinGWFromSVN.sh
+END
+build.sh
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/build.sh
+END
+build_mingw.sh
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/build_mingw.sh
+END
+intelCCbuild.sh
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/intelCCbuild.sh
+END
+build_mingw_gui.sh
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/build_mingw_gui.sh
+END
+gtk_build.sh
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/419/hyphy/last1.0/Scripts/gtk_build.sh
+END

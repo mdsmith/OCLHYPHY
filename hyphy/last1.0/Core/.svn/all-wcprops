@@ -1,0 +1,257 @@
+K 25
+svn:wc:ra_dav:version-url
+V 36
+/svn/!svn/ver/419/hyphy/last1.0/Core
+END
+hy_strings.h
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/hy_strings.h
+END
+parser.h
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/419/hyphy/last1.0/Core/parser.h
+END
+classes.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/classes.h
+END
+hy_lists.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/hy_lists.h
+END
+matrix.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/matrix.cpp
+END
+site.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/419/hyphy/last1.0/Core/site.cpp
+END
+likefunc.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/likefunc.h
+END
+SQLite Carbon
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/419/hyphy/last1.0/Core/SQLite%20Carbon
+END
+baseobj.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/419/hyphy/last1.0/Core/baseobj.cpp
+END
+preferences.h
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Core/preferences.h
+END
+calcnode.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/calcnode.cpp
+END
+sequence.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/sequence.cpp
+END
+polynoml.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/polynoml.cpp
+END
+regex.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/regex.cpp
+END
+list.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/419/hyphy/last1.0/Core/list.cpp
+END
+batchlan.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/batchlan.cpp
+END
+category.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/category.cpp
+END
+classes.cp
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/classes.cp
+END
+calcnode2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Core/calcnode2.cpp
+END
+parser.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/parser.cpp
+END
+batchlan2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Core/batchlan2.cpp
+END
+likefunc.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/likefunc.cpp
+END
+preferences.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/svn/!svn/ver/419/hyphy/last1.0/Core/preferences.cpp
+END
+nexus.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/nexus.cpp
+END
+mypthread.h
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/419/hyphy/last1.0/Core/mypthread.h
+END
+SQDll.lib
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/SQDll.lib
+END
+fisher_exact.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/svn/!svn/ver/419/hyphy/last1.0/Core/fisher_exact.cpp
+END
+errorfns.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/errorfns.h
+END
+matrix.h
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/svn/!svn/ver/419/hyphy/last1.0/Core/matrix.h
+END
+site.h
+K 25
+svn:wc:ra_dav:version-url
+V 43
+/svn/!svn/ver/419/hyphy/last1.0/Core/site.h
+END
+baseobj.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/baseobj.h
+END
+calcnode.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/calcnode.h
+END
+sequence.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/sequence.h
+END
+parser2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/419/hyphy/last1.0/Core/parser2.cpp
+END
+polynoml.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/polynoml.h
+END
+batchlan.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/batchlan.h
+END
+likefunc2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 50
+/svn/!svn/ver/419/hyphy/last1.0/Core/likefunc2.cpp
+END
+category.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/category.h
+END
+ptr_array.cp
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/419/hyphy/last1.0/Core/ptr_array.cp
+END
+gnuregex.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/svn/!svn/ver/419/hyphy/last1.0/Core/gnuregex.h
+END
+error.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/svn/!svn/ver/419/hyphy/last1.0/Core/error.cpp
+END
+strings.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/svn/!svn/ver/419/hyphy/last1.0/Core/strings.cpp
+END

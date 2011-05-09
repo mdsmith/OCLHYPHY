@@ -1,0 +1,77 @@
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/svn/!svn/ver/1070/hyphy/trunk/NewerFunctionality
+END
+scfg.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/929/hyphy/trunk/NewerFunctionality/scfg.cpp
+END
+bayesgraph.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/871/hyphy/trunk/NewerFunctionality/bayesgraph.cpp
+END
+bgm.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/1070/hyphy/trunk/NewerFunctionality/bgm.cpp
+END
+Net.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/1/hyphy/trunk/NewerFunctionality/Net.cpp
+END
+bayesgraph2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/svn/!svn/ver/871/hyphy/trunk/NewerFunctionality/bayesgraph2.cpp
+END
+bgm2.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/svn/!svn/ver/878/hyphy/trunk/NewerFunctionality/bgm2.cpp
+END
+scfg.h
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/svn/!svn/ver/111/hyphy/trunk/NewerFunctionality/scfg.h
+END
+HYNetInterface.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/svn/!svn/ver/938/hyphy/trunk/NewerFunctionality/HYNetInterface.cpp
+END
+bayesgraph.h
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/svn/!svn/ver/871/hyphy/trunk/NewerFunctionality/bayesgraph.h
+END
+bgm.h
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/svn/!svn/ver/468/hyphy/trunk/NewerFunctionality/bgm.h
+END
+SerangNet.h
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/svn/!svn/ver/1/hyphy/trunk/NewerFunctionality/SerangNet.h
+END
+HYNetInterface.h
+K 25
+svn:wc:ra_dav:version-url
+V 63
+/svn/!svn/ver/1/hyphy/trunk/NewerFunctionality/HYNetInterface.h
+END

@@ -1,0 +1,65 @@
+K 25
+svn:wc:ra_dav:version-url
+V 60
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include
+END
+shared_main.h
+K 25
+svn:wc:ra_dav:version-url
+V 74
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/shared_main.h
+END
+HYSharedMain.h
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYSharedMain.h
+END
+HYObjectInspector.h
+K 25
+svn:wc:ra_dav:version-url
+V 80
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYObjectInspector.h
+END
+HYBaseGUI.h
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYBaseGUI.h
+END
+HYTableWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYTableWindow.h
+END
+HYUtils.h
+K 25
+svn:wc:ra_dav:version-url
+V 70
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYUtils.h
+END
+HYGraphicPane.h
+K 25
+svn:wc:ra_dav:version-url
+V 76
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYGraphicPane.h
+END
+HYDialogs.h
+K 25
+svn:wc:ra_dav:version-url
+V 72
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYDialogs.h
+END
+HYEventTypes.h
+K 25
+svn:wc:ra_dav:version-url
+V 75
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYEventTypes.h
+END
+HYWindow.h
+K 25
+svn:wc:ra_dav:version-url
+V 71
+/svn/!svn/ver/419/hyphy/last1.0/GUIElements/Shared%20Include/HYWindow.h
+END
