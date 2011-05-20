@@ -38,6 +38,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	long likeFuncEvalCallCount,
 			 matrixExpCount;
 
+int launchmdsocl(double * parent_results,
+                 long siteCount,
+                 double nodeCount,
+                 long alphabetDimension,
+                 _SimpleList& updateNodes,
+                 _SimpleList& flatParents,
+                 _SimpleList& flatNodes,
+                 _SimpleList& flatCLeaves,
+                 _SimpleList& flatTree,
+                 _Parameter* iNodeCache,
+                 long* lNodeFlags,
+                 _SimpleList taggedInternals,
+                 _GrowingVector* lNodeResolutions);
+
 #ifdef	_SLKP_LFENGINE_REWRITE_
 
 
@@ -228,8 +242,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                                                         
 					siteCount			  =			theFilter->NumberDistinctSites();
                         // how many unique sites are there
-	#ifdef MDSOCL
-    // so what I need to have happen: build the caches, run the method in another file, read back the caches.
+#ifdef MDSOCL
 
     double sites = siteCount;
     double characters = alphabetDimension;
@@ -388,12 +401,12 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         
     // now just process the root and return the likelihood
 
-#endif
-
     _Parameter	* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
                 // the root is always the LAST internal node in all lists
                   result = 0.0;
 
+
+#endif
 
     for (long siteID = 0; siteID < siteCount; siteID++)
     {

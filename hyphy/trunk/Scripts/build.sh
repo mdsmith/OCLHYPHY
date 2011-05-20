@@ -173,7 +173,7 @@ then
 	echo "+----------------------------------------------------------------------+"
 	echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
 	echo "+----------------------------------------------------------------------+"
-	COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp "
+	COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D MDSOCL"
 fi
 
 if [ $1 = "MP2" ] 
