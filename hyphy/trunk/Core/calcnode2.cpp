@@ -38,9 +38,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	long likeFuncEvalCallCount,
 			 matrixExpCount;
 
-int launchmdsocl(double * parent_results,
-                 long siteCount,
-                 double nodeCount,
+int launchmdsocl(long siteCount,
+                 long nodeCount,
                  long alphabetDimension,
                  _SimpleList& updateNodes,
                  _SimpleList& flatParents,
@@ -244,10 +243,9 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                         // how many unique sites are there
 #ifdef MDSOCL
 
-    double sites = siteCount;
-    double characters = alphabetDimension;
-    double nodeCount = updateNodes.lLength;
-    double *parent_results = (double *)malloc (sizeof(double)*characters*sites);
+    long sites = siteCount;
+    long characters = alphabetDimension;
+    long nodeCount = updateNodes.lLength;
 
     // so it looks like everything to this point can be done here, in place. 
 
@@ -281,8 +279,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
     // so it looks like childVector is a pointer to a subset of iNode cache that can be copied out to a new array and then passed onto the GPU
 
-    int test = launchmdsocl(parent_results,
-                            siteCount,
+    int test = launchmdsocl(siteCount,
                             nodeCount,
                             alphabetDimension,
                             updateNodes,
@@ -296,8 +293,6 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                             lNodeResolutions);
 
     // The root node stuff can be done here, in place, assuming the GPU code returns (probably via pointer), the resulting array. 
-
-    // TODO: set this to something having to do with parent_results, most likely the last element. 
     _Parameter  * rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
     // the root is always the LAST internal node in all lists
     result = 0.0;

@@ -4,7 +4,6 @@
 // Runs computations with OpenCL on the GPU device and then checks results 
 // against basic host CPU/C++ computation.
 // 
-// TODO: return the results the results are the parentcache.
 //
 // *********************************************************************
 
@@ -51,9 +50,10 @@ char* cPathAndName = NULL;      // var for full paths to data, src, etc.
 cl_mem cmNode_cache;
 cl_mem cmModel_cache;
 cl_mem cmNodRes_cache;
-double* parent_results;
+cl_mem cmNodFlag_cache;
 long siteCount, alphabetDimension; 
 double nodeCount;
+long* lNodeFlags;
 _SimpleList&    updateNodes, 
                 flatParents,
                 flatNodes,
@@ -63,16 +63,15 @@ _Parameter* iNodeCache;
 _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 
-void *model, *node_cache, *nodRes_cache;
+void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
 
 // Forward Declarations
 // *********************************************************************
 void Cleanup (int iExitCode);
 unsigned int roundUpToNextPowerOfTwo(unsigned int x);
 double roundDoubleUpToNextPowerOfTwo(double x);
-int launchmdsocl(double * parent_results,
-                 long siteCount,
-                 double nodeCount,
+int launchmdsocl(long siteCount,
+                 long nodeCount,
                  long alphabetDimension,
                  _SimpleList& updateNodes,
                  _SimpleList& flatParents,
@@ -89,10 +88,6 @@ int launchmdsocl(double * parent_results,
 // *********************************************************************
 int oclmain()
 {
-    // TODO: finish accounting for all of the functions in the original method
-    // (some of which will have to be done on the host, some will have to be
-    // done on the Device)
-    
     // Make transitionMatrixArray, do other host stuff:
     model = (void*)malloc
         (sizeof(clfp)*alphabetDimension*alphabetDimension*nodeCount);
@@ -101,6 +96,7 @@ int oclmain()
     // FIXED: fix nodRes_cache size
     nodRes_cache = (void*)malloc
         (sizeof(clfp)*lNodeResolutions.lLength);
+	nodFlag_cache = (void*)malloc(sizeof(cl_long)*lNodeFlags.lLength);
     for (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
         long    nodeCode = updateNodes.lData[nodeID],
@@ -122,11 +118,9 @@ int oclmain()
                     parentConditionals [k3++] = 1.0;
         }
 		
-
-						
 		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
                                                ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
-
+		
         for (int a1 = 0; a1 < alphabetDimension; a1++)
         {
             for (int a2 = 0; a2 < alphabetDimension; a2++)
@@ -137,13 +131,14 @@ int oclmain()
         }
     }
     for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
-    {
-       ((fpoint*)node_cache)[i] = iNodeCache[i];
-    }
+        ((fpoint*)node_cache)[i] = iNodeCache[i];
     for (int i = 0; i < lNodeResolutions.lLength; i++)
-    {
-        ((fpoint*)nodRes_cache)[i] = lNodeResolutions[i];
-    }
+        ((fpoint*)nodRes_cache)[i] = lNodeResolutions->theData[i];
+	for (int i = 0; i < lNodeflags.lLength; i++)
+		((fpoint*)nodFlag_cache)[i] = lNodeFlags[i];
+
+
+
     // alright, by now taggedInternals have been taken care of, and model has
     // been filled with all of the transition matrices. 
 
@@ -153,10 +148,10 @@ int oclmain()
     
     // set and log Global and Local work size dimensions
     
-    szLocalWorkSize = roundDoubleUpToNextPowerOfTwo(alphabetDimension);
-    szGlobalWorkSize = roundDoubleUpToNextPowerOfTwo(siteCount) *
-        roundDoubleUpToNextPowerOfTwo(alphabetDimension);
-    localMemorySize = roundDoubleUpToNextPowerOfTwo(alphabetDimension);
+    szLocalWorkSize = roundUpToNextPowerOfTwo(alphabetDimension);
+    szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) *
+        roundUpToNextPowerOfTwo(alphabetDimension);
+    localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
     printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
            szGlobalWorkSize, szLocalWorkSize, 
            (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
@@ -241,6 +236,9 @@ int oclmain()
     cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(clfp)*lNodeResolutions.lLength, NULL, &ciErr2);
     ciErr1 |= ciErr2;
+	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+					sizeof(cl_long)*lNodeFlags.lLength, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
     
     print("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -252,8 +250,6 @@ int oclmain()
     
     // Create the program
     // Read the OpenCL kernel in from source file
-    // TODO: account for if it is a leaf or not, make sure all of the arguments are passed properly
-    // TODO: figure out where the parent result should be written out to. 
     // My options for figuring out the proper parent and child character indices for aquisition and insertion of data are as follows:
     //      -- pass the conversion arrays and use the globalID and localID to figure out the site number offset from the childNodeIndex
     //          and parentNodeIndex offsets respectively, using the localID as the final character offset.
@@ -274,38 +270,56 @@ int oclmain()
     // For non-ambiguous leaves there is no point in looping through the possible child characters for each parent character. Rather
     //      we multiply each parent character by the value in the transition matrix that corresponds to that parent character at the 
     //      child character that has a non-zero value. 
+    // Note that sites, characters and nodes are real numbers, not rounded. 
+    // I want to say that you don't have to drop out the inner loop just because you have an unambiguous leaf. 
+    //      This has to do with how the transition matrices are stored. The tMatrix pointer is leaf dependent. I have been pulling 
+    //      Whatever it points to and shoving it in one array assuming that the dimensionalities of the two options are equal. If they 
+    //      are not then a lot of code is wrong. But it would be advantageous to construct this consistent array, so I will change
+    //      the possible outcomes if necessary rather than change the device code. 
+	// So what is currently in place will account for the model not being the same leaf vs internal node. 
+	// For ambiguous leaves, you just fill the nodeScratch with something other than what is currently in the iNodeCache, the model is 
+	// 		the same. 
+	// For unambiguous leaves you fill the modelScratch like normal, but this part of the model array is different because it is a leaf. 
+	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
+	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
+	// 		wont be a problem.
 	const char *program_source = "\n" \
 	"#pragma OPENCL EXTENSION cl_khr_fp64: enable																			    	\n" \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
-    "    __local fpoint* nodeScratch, __local fpoint * modelScratch, int nodes, int sites, int characters,	int childNodeIndex,     \n" \
-    "    int parentNodeIndex, int leafLen, int roundCharacters)	                                                                    \n" \
+    "    __global const long* nodFlag_cache, __local fpoint* nodeScratch, __local fpoint * modelScratch, long nodes, long sites,    \n" \
+    "    long characters, long childNodeIndex, long parentNodeIndex, long leafLen, long roundCharacters)	                        \n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis    	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within the site.										    	\n" \
-	"	if ((parentCharGlobal/characters) >= sites) return;	// filter out those parent characters that were added to round the      \n" \
+	"	if ((parentCharGlobal/roundCharacters) >= sites) return;// filter out those parent characters that were added to round the  \n" \
     "   // number of sites to a power of two                                                                                        \n" \
 	"	if (parentCharLocal >= characters) return; // that won't catch all the characters, as some were inserted into each site     \n" \
     "   // to round the number of characters up to a power of two.                                                                  \n" \
-    "   bool isLeaf = childNodeIndex < leafLen;                                                                                          \n" \
-    "   int siteNumber = parentCharGlobal/roundCharacters);                                                                         \n" \
+    "   bool isLeaf = childNodeIndex < leafLen;                                                                                     \n" \
+    "   int siteNumber = parentCharGlobal/roundCharacters;                                                                          \n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                      \n" \
     "   int childCharacterIndex = childNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                        \n" \
-    "   if (!isLeaf)
-	"       nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			    	\n" \
-    "   else
-    "       int siteState = lNodeFlags[childNodeIndex*sites + siteNumber];
-    "       nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1)];
-    "   modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal * characters + parentCharLocal];	\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + siteNumber];															\n" \
+    "   if (!isLeaf)                                                                                                                \n" \
+	"       nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			  	\n" \
+    "   else                                                                                                                        \n" \
+    "       nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                               \n" \
+    "   modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal]; \n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	"   fpoint sum = 0.;																									    	\n" \
-    "   long myChar;																										    	\n" \
-    "   for (myChar = 0; myChar < characters; myChar++)																	    		\n" \
-    "   {																													     	\n" \
-    "       sum += nodeScratch[myChar] * modelScratch[myChar];																    	\n" \
-    "   }																														    \n" \
-    "   barrier(CLK_LOCAL_MEM_FENCE);																				    			\n" \
-	"   parent_cache[parentCharGlobal] *= sum;																		     			\n" \
+	" 	if (isLeaf && siteState >=0)																								\n" \
+	"		node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
+	"	else																														\n" \
+	"	{																															\n" \
+	"   	fpoint sum = 0.;																								    	\n" \
+    "   	long myChar;																									    	\n" \
+    "   	for (myChar = 0; myChar < characters; myChar++)																	   		\n" \
+    "   	{																												     	\n" \
+    "   	    sum += nodeScratch[myChar] * modelScratch[myChar];															    	\n" \
+    "   	}																													    \n" \
+    "   	barrier(CLK_LOCAL_MEM_FENCE);																				    		\n" \
+	"   	node_cache[parentCharacterIndex] *= sum;					      												    	\n" \
+	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
     
@@ -364,10 +378,30 @@ int oclmain()
         Cleanup(EXIT_FAILURE);
     }
     
+    long tempNodeCount = nodeCount;
+    long tempSiteCount = siteCount;
+    long tempCharCount = alphabetdimension;
+	long tempChildNodeIndex = 0;
+	long tempParentNodeIndex = 0;
+	long tempLeafLen = flatLeaves.lLength;
+	long tempRoundCharCount = localMemorySize;
+
     // Set the Argument values
-    // TODO: set the arguments
-    // nodeIndex
-    // 
+	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel);
+	ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 4, localMemorySize * sizeof(fpoint),	NULL);
+	ciErr1 |= clSetKernelArg(ckKernel, 5, localMemorySize * sizeof(fpoint),	NULL);
+	ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(cl_long), (void*)&tempNodeCount);
+	ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckKernel, 8, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&tempLeafLen); 
+	ciErr1 |= clSetKernelArg(ckKernel, 12, sizeof(cl_long), (void*)&tempRoundCharCount); 
+
+
     printf("clSetKernelArg 0 - 10...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -384,9 +418,10 @@ int oclmain()
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
                 sizeof(clfp)*alphabetDimension*alphabetDimension*nodeCount,
                 model_cache, 0, NULL, NULL);
-    // FIXED: fix size of resNod_cache
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
-                sizeof(clfp)*lNodeResolutions, nodRes_cache, 0, NULL, NULL);
+                sizeof(clfp)*lNodeResolutions.lLength, nodRes_cache, 0, NULL, NULL);
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
+                sizeof(cl_long)*lNodeFlags.lLength, nodFlag_cache, 0, NULL, NULL);
     
     printf("clEnqueueWriteBuffer (node_cache, parent_cache and model)...\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -396,14 +431,15 @@ int oclmain()
     }
     
     // Launch kernel
-    // TODO: node loop, argument setting, launch kernel, manage output
-    // TODO: deal with pointer arithmetic. Pass as argument or do with
-    // global/localID's?
-    
     for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++)
     {
 
-            ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
+		long tempChildNodeIndex = updateNodes.lData[nodeIndex];
+		long tempParentNodeIndex = flatParents.lData[nodeIndex];
+		ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+		ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+			
+		ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
 										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
         
         if (ciErr1 != CL_SUCCESS)
@@ -479,9 +515,8 @@ int oclmain()
 }
 
 
-int launchmdsocl(double * parent_results,
-                 long siteCount,
-                 double nodeCount,
+int launchmdsocl(long siteCount,
+                 long nodeCount,
                  long alphabetDimension,
                  _SimpleList& updateNodes,
                  _SimpleList& flatParents,
@@ -513,7 +548,6 @@ int launchmdsocl(double * parent_results,
     // transition matrix:
         // proof of concept: model_cache
         // hyphy: flatCLeaves or flatTree->GetCompExp(0)
-        // OpenCL: Don't know! TODO!
         // build now, move onto GPU all at once, move a chunk into memory in each kernel. 
     
     // To move onto GPU:
@@ -531,8 +565,6 @@ int launchmdsocl(double * parent_results,
     
     // run oclmain()
     
-    // put the result in parent_results
-    this->parent_results = parent_results;
     this->siteCount = siteCount;
     this->nodeCount = nodeCount;
     this->alphabetDimension = alphabetDimension;
