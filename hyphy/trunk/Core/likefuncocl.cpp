@@ -46,62 +46,105 @@ typedef cl_double clfp;
 #pragma OPENCL EXTENSION cl_amd_fp64: enable
 #endif
 
-// OpenCL Vars
-cl_context cxGPUContext;        // OpenCL context
-cl_command_queue cqCommandQueue;// OpenCL command que
-cl_platform_id cpPlatform;      // OpenCL platform
-cl_device_id cdDevice;          // OpenCL device
-cl_program cpProgram;           // OpenCL program
-cl_kernel ckKernel;             // OpenCL kernel
-size_t szGlobalWorkSize;        // 1D var for Total # of work items
-size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
-size_t localMemorySize;         // size of local memory buffer for kernel scratch
-size_t szParmDataBytes;         // Byte size of context information
-size_t szKernelLength;          // Byte size of kernel code
-cl_int ciErr1, ciErr2;          // Error code var
-char* cPathAndName = NULL;      // var for full paths to data, src, etc.
+class _OCLEvaluator 
+{
 
-cl_mem cmNode_cache;
-cl_mem cmModel_cache;
-cl_mem cmNodRes_cache;
-cl_mem cmNodFlag_cache;
-long siteCount, alphabetDimension; 
-long* lNodeFlags;
-_SimpleList    updateNodes, 
-                flatParents,
-                flatNodes,
-                flatCLeaves,
-                flatLeaves,
-                flatTree;
-_Parameter* iNodeCache;
-_SimpleList taggedInternals;
-_GrowingVector* lNodeResolutions;
+	// OpenCL Vars
+	cl_context cxGPUContext;        // OpenCL context
+	cl_command_queue cqCommandQueue;// OpenCL command que
+	cl_platform_id cpPlatform;      // OpenCL platform
+	cl_device_id cdDevice;          // OpenCL device
+	cl_program cpProgram;           // OpenCL program
+	cl_kernel ckKernel;             // OpenCL kernel
+	size_t szGlobalWorkSize;        // 1D var for Total # of work items
+	size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
+	size_t localMemorySize;         // size of local memory buffer for kernel scratch
+	size_t szParmDataBytes;         // Byte size of context information
+	size_t szKernelLength;          // Byte size of kernel code
+	cl_int ciErr1, ciErr2;          // Error code var
+	char* cPathAndName = NULL;      // var for full paths to data, src, etc.
 
-void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
+	cl_mem cmNode_cache;
+	cl_mem cmModel_cache;
+	cl_mem cmNodRes_cache;
+	cl_mem cmNodFlag_cache;
+	long siteCount, alphabetDimension; 
+	long* lNodeFlags;
+	_SimpleList    updateNodes, 
+					flatParents,
+					flatNodes,
+					flatCLeaves,
+					flatLeaves,
+					flatTree;
+	_Parameter* iNodeCache;
+	_SimpleList taggedInternals;
+	_GrowingVector* lNodeResolutions;
 
-// Forward Declarations
+	void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
+
+	// Forward Declarations
+	// *********************************************************************
+	void Cleanup (int iExitCode);
+	unsigned int roundUpToNextPowerOfTwo(unsigned int x);
+	double roundDoubleUpToNextPowerOfTwo(double x);
+	// So the only thing that needs to be passed as an update for each LF is flatTree and flatCLeaves
+	// as those are what goes into the new transition matrix stuff. 
+	// So I could have a launchmdsocl that takes everything and if stuff is not NULL than update, if it is
+	// null use the existing values. How about that?
+	// The problem is that I need to have essentially the first LF's information to properly set everything up. 
+	// And how do I have subsequent LF's not pass stuff. 
+	// Oi, how do I not have to convert this into an object...
+	// alright, I can probably keep all of this in likefunc. That is because the LFEvaluation is done in the
+	// calc node
+	int oclmain(void);
+	bool contextSet = false;
+	int setupContext(	_SimpleList& updateNodes,
+						_SimpleList& flatParents,
+						_SimpleList& flatNodes,
+						_SimpleList& flatCLeaves,
+						_SimpleList& flatLeaves,
+						_SimpleList& flatTree,
+						long* lNodeFlags,
+						_SimpleList taggedInternals,
+						_GrowingVector* lNodeResolutions);
+
+
+public:
+	_OCLEvaluator(		long esiteCount,
+						long ealphabetDimension,
+						long* eiNodeCache);
+
+
+	int launchmdsocl(	_SimpleList& updateNodes,
+						 _SimpleList& flatParents,
+						 _SimpleList& flatNodes,
+						 _SimpleList& flatCLeaves,
+						 _SimpleList& flatLeaves,
+						 _SimpleList& flatTree,
+						 long* lNodeFlags,
+						 _SimpleList taggedInternals,
+						 _GrowingVector* lNodeResolutions);
+
+
+}
+void _OCLEvaluator::_OCLEvaluator(	long esiteCount,
+									long ealphabetDimension,
+									long* eiNodeCache)
+{
+    siteCount = esiteCount;
+    alphabetDimension = ealphabetDimension;
+    iNodeCache = eiNodeCache;
+}
+
+// TODO: so I have started transitioning to a class system. I am having setupContext be called the first time you call 
+// 		launchmdsocl, as determined by the contextSet flag. 
+// So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
+// Therefore all of these functions need to be finished, the context needs to be setup separately from the execution, the data needs 
+// to be passed piecewise, and a pointer needs to be passed around in likefunc2.cpp. After that things should be going a bit faster, 
+// though honestly this solution is geared towards analyses with a larger number of sites. 
+
 // *********************************************************************
-void Cleanup (int iExitCode);
-unsigned int roundUpToNextPowerOfTwo(unsigned int x);
-double roundDoubleUpToNextPowerOfTwo(double x);
-int launchmdsocl(long siteCount,
-                 long nodeCount,
-                 long alphabetDimension,
-                 _SimpleList& updateNodes,
-                 _SimpleList& flatParents,
-                 _SimpleList& flatNodes,
-                 _SimpleList& flatCLeaves,
-                 _SimpleList& flatLeaves,
-                 _SimpleList& flatTree,
-                 _Parameter* iNodeCache,
-                 long* lNodeFlags,
-                 _SimpleList taggedInternals,
-                 _GrowingVector* lNodeResolutions);
-
-
-// Main function 
-// *********************************************************************
-int oclmain()
+int _OCLEvaluator::setupContext( )
 {
 //    printf("Made it to the oclmain() function!\n");
 
@@ -121,8 +164,6 @@ int oclmain()
 //    printf("Got the sizes of nodeRes and nodeFlag: %i, %i\n", nodeResCount, nodeFlagCount);
 
     // Make transitionMatrixArray, do other host stuff:
-    model = (void*)malloc
-        (sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength);
     node_cache = (void*)malloc
         (sizeof(clfp)*alphabetDimension*siteCount*(flatNodes.lLength)); // +1 for root
     nodRes_cache = (void*)malloc
@@ -153,17 +194,6 @@ int oclmain()
                     parentConditionals [k3++] = 1.0;
         }
 		
-		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
-                                               ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
-		
-        for (int a1 = 0; a1 < alphabetDimension; a1++)
-        {
-            for (int a2 = 0; a2 < alphabetDimension; a2++)
-            {
-                ((fpoint*)model)[nodeID*alphabetDimension*alphabetDimension+a1*alphabetDimension+a2] =
-                    tMatrix[a1*alphabetDimension+a2];
-            }
-        }
     }
  //   printf("setup the model, fixed tagged internals!\n");
  //   printf("flatleaves: %i\n", flatLeaves.lLength);
@@ -515,9 +545,31 @@ int oclmain()
         Cleanup(EXIT_FAILURE);
     }
     
+}	
+
+int _OCLEvaluator::oclmain(void)
+{
+
+	
+    model = (void*)malloc
+        (sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength);
     // Launch kernel
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
+		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
+                                               ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
+		
+        for (int a1 = 0; a1 < alphabetDimension; a1++)
+        {
+            for (int a2 = 0; a2 < alphabetDimension; a2++)
+            {
+                ((fpoint*)model)[nodeID*alphabetDimension*alphabetDimension+a1*alphabetDimension+a2] =
+                    tMatrix[a1*alphabetDimension+a2];
+            }
+        }
+
+
+
         bool isLeaf = nodeIndex < flatLeaves.lLength;
         int childIndex = nodeIndex;
         if (!isLeaf) 
@@ -607,10 +659,7 @@ int oclmain()
 }
 
 
-int launchmdsocl(long esiteCount,
-                 long enodeCount,
-                 long ealphabetDimension,
-                 _SimpleList& eupdateNodes,
+int _OCLEvaluator::launchmdsocl(_SimpleList& eupdateNodes,
                  _SimpleList& eflatParents,
                  _SimpleList& eflatNodes,
                  _SimpleList& eflatCLeaves,
@@ -659,15 +708,12 @@ int launchmdsocl(long esiteCount,
     // run oclmain()
 //    printf("Made it to the pass-off Function!");
     
-    siteCount = esiteCount;
-    alphabetDimension = ealphabetDimension;
     updateNodes = eupdateNodes;
     flatParents = eflatParents;
     flatNodes = eflatNodes;
     flatCLeaves = eflatCLeaves;
     flatLeaves = eflatLeaves;
     flatTree = eflatTree;
-    iNodeCache = eiNodeCache;
     lNodeFlags = elNodeFlags;
     taggedInternals = etaggedInternals;
     lNodeResolutions = elNodeResolutions;
@@ -678,7 +724,7 @@ int launchmdsocl(long esiteCount,
 }
 
 
-void Cleanup (int iExitCode)
+void _OCLEvaluator::Cleanup (int iExitCode)
 {
     // Cleanup allocated objects
 //    printf("Starting Cleanup...\n\n");
@@ -701,7 +747,7 @@ void Cleanup (int iExitCode)
     // exit (iExitCode);
 }
 
-unsigned int roundUpToNextPowerOfTwo(unsigned int x)
+unsigned int _OCLEvaluator::roundUpToNextPowerOfTwo(unsigned int x)
 {
     x--;
     x |= x >> 1;
@@ -714,7 +760,7 @@ unsigned int roundUpToNextPowerOfTwo(unsigned int x)
     return x;
 }
 
-double roundDoubleUpToNextPowerOfTwo(double x)
+double _OCLEvaluator::roundDoubleUpToNextPowerOfTwo(double x)
 {
     return pow(2, ceil(log2(x)));
 }

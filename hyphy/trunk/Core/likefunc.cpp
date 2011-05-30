@@ -3919,7 +3919,10 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 		conditionalTerminalNodeLikelihoodCaches.AppendNewInstance (ambigs);
 		delete [] columnBlock; delete [] translationCache;
 
-        // MDSOCL create likefuncocl instance and pass it iNodeCache
+
+		// MDSOCL so I am going to have to setup things here, then finish setting them up and executing them later
+		// TODO: setup context and iNodeCount array
+
 	}
 }
 
@@ -8082,6 +8085,10 @@ _Parameter	_LikelihoodFunction::ComputeBlock (long index, _Parameter* siteRes, l
 	if (conditionalInternalNodeLikelihoodCaches)
 	{
 #ifdef  _HY_GPU_EXAMPLE_CALCULATOR
+
+		// MDSOCL
+		// TODO: so here I will need to take a pointer from the caches I setup above, pass the new tree parameters, finish setup and execute. 
+		// pass new tree parameters and execute one LFcalc
 
        long		ciid			 = MAX(0,currentRateClass); // ignore this for now as it pertains to more complex evolutionary models
        
