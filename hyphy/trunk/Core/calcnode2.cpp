@@ -45,6 +45,7 @@ int launchmdsocl(long siteCount,
                  _SimpleList& flatParents,
                  _SimpleList& flatNodes,
                  _SimpleList& flatCLeaves,
+                 _SimpleList& flatLeaves,
                  _SimpleList& flatTree,
                  _Parameter* iNodeCache,
                  long* lNodeFlags,
@@ -279,6 +280,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
     // so it looks like childVector is a pointer to a subset of iNode cache that can be copied out to a new array and then passed onto the GPU
 
+	printf("Launching a tree in OpenCL...\n");
+
     int test = launchmdsocl(siteCount,
                             nodeCount,
                             alphabetDimension,
@@ -286,6 +289,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                             flatParents,
                             flatNodes,
                             flatCLeaves,
+                            flatLeaves,
                             flatTree,
                             iNodeCache,
                             lNodeFlags,
@@ -299,6 +303,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
 #else
   
+	printf("Launching a tree in host...\n"); 
+
 	for  (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
 	{
 		long	nodeCode   = updateNodes.lData [nodeID],

@@ -4,7 +4,10 @@
 // Runs computations with OpenCL on the GPU device and then checks results 
 // against basic host CPU/C++ computation.
 // 
+//
 // *********************************************************************
+
+#if defined(MDSOCL)
 
 #include <stdio.h>
 #include <assert.h>
@@ -19,40 +22,29 @@
 //struct timespec begin;
 //struct timespec end;
 
+	
 #if defined(__APPLE__)
 #include <OpenCL/OpenCL.h>
 typedef float fpoint;
 typedef cl_float clfp;
 #define FLOATPREC "typedef float fpoint; \n"
-#else
+#define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
+#pragma OPENCL EXTENSION cl_khr_fp64: enable
+#elif defined(NVIDIA)
 #include <oclUtils.h>
 typedef double fpoint;
 typedef cl_double clfp;
 #define FLOATPREC "typedef double fpoint; \n"
+#define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
+#pragma OPENCL EXTENSION cl_khr_fp64: enable
+#elif defined(AMD)
+#include <CL/opencl.h>
+typedef double fpoint;
+typedef cl_double clfp;
+#define FLOATPREC "typedef double fpoint; \n"
+#define PRAGMADEF "#pragma OPENCL EXTENSION cl_amd_fp64: enable \n"
+#pragma OPENCL EXTENSION cl_amd_fp64: enable
 #endif
-
-// Constants
-//**********************************************************************
-//#define SITES           1000    //originally 1000
-//#define CHARACTERS      61      //originally 61 (codons)
-//#define NODES           150        //originally 100
-
-
-// Scaling elements
-//**********************************************************************
-fpoint uflowThresh     = 0.00000000000000000000000000000000000000000000000000000001;
-fpoint scalar          = 100.0;
- void* scalings;
-cl_mem cmScalings;
-
-// Name of the file with the source code for the computation kernel
-// *********************************************************************
-//const char* cSourceFile = "oclFirstLoop.cl";
-
-// Host buffers for demo
-// *********************************************************************
- void* Golden;                   // Host buffer for host golden processing cross check
- void    *node_cache, *parent_cache, *model, *parent_results;
 
 // OpenCL Vars
 cl_context cxGPUContext;        // OpenCL context
@@ -61,9 +53,6 @@ cl_platform_id cpPlatform;      // OpenCL platform
 cl_device_id cdDevice;          // OpenCL device
 cl_program cpProgram;           // OpenCL program
 cl_kernel ckKernel;             // OpenCL kernel
-cl_mem cmNode_cache;            // OpenCL device source for node_cache
-cl_mem cmParent_cache;          // OpenCL device source for parent_cache
-cl_mem cmModel;                 // OpenCL device source for model
 size_t szGlobalWorkSize;        // 1D var for Total # of work items
 size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
@@ -71,91 +60,172 @@ size_t szParmDataBytes;         // Byte size of context information
 size_t szKernelLength;          // Byte size of kernel code
 cl_int ciErr1, ciErr2;          // Error code var
 char* cPathAndName = NULL;      // var for full paths to data, src, etc.
-int sites, nodes, chars;
+
+cl_mem cmNode_cache;
+cl_mem cmModel_cache;
+cl_mem cmNodRes_cache;
+cl_mem cmNodFlag_cache;
+long siteCount, alphabetDimension; 
+long* lNodeFlags;
+_SimpleList    updateNodes, 
+                flatParents,
+                flatNodes,
+                flatCLeaves,
+                flatLeaves,
+                flatTree;
+_Parameter* iNodeCache;
+_SimpleList taggedInternals;
+_GrowingVector* lNodeResolutions;
+
+void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
 
 // Forward Declarations
 // *********************************************************************
-void FirstLoopHost(const fpoint* node_cache, const fpoint* model, fpoint* parent_cache);
 void Cleanup (int iExitCode);
 unsigned int roundUpToNextPowerOfTwo(unsigned int x);
 double roundDoubleUpToNextPowerOfTwo(double x);
-int launchmdsocl(double * parent_results,
-                 long siteCount,
-                 double nodeCount,
+int launchmdsocl(long siteCount,
+                 long nodeCount,
                  long alphabetDimension,
                  _SimpleList& updateNodes,
                  _SimpleList& flatParents,
                  _SimpleList& flatNodes,
                  _SimpleList& flatCLeaves,
+                 _SimpleList& flatLeaves,
                  _SimpleList& flatTree,
                  _Parameter* iNodeCache,
                  long* lNodeFlags,
                  _SimpleList taggedInternals,
                  _GrowingVector* lNodeResolutions);
-//extern char* load_program_source(const char *filename, const char *argv, size_t *szKernelLength);
 
 
 // Main function 
 // *********************************************************************
 int oclmain()
 {
-	
+//    printf("Made it to the oclmain() function!\n");
+
+    //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
+    long nodeFlagCount = flatLeaves.lLength;
+    long nodeResCount = lNodeResolutions->GetUsed();
+//    long nodeCount = flatLeaves.lLength + flatNodes.lLength + 1;
+//    long iNodeCount = flatNodes.lLength + 1;
+
+    bool ambiguousNodes = true;
+    if (nodeResCount == 0) 
+    {
+        nodeResCount++;
+        ambiguousNodes = false;
+    }
+
+//    printf("Got the sizes of nodeRes and nodeFlag: %i, %i\n", nodeResCount, nodeFlagCount);
+
+    // Make transitionMatrixArray, do other host stuff:
+    model = (void*)malloc
+        (sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength);
+    node_cache = (void*)malloc
+        (sizeof(clfp)*alphabetDimension*siteCount*(flatNodes.lLength)); // +1 for root
+    nodRes_cache = (void*)malloc
+        (sizeof(clfp)*nodeResCount);
+	nodFlag_cache = (void*)malloc(sizeof(cl_long)*nodeFlagCount);
+
+//    printf("Allocated all of the arrays!\n");
+
+    // Essentially I don't know why these numbers are what they are, should probably figure that out before moving on.
+    for (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
+    {
+        long    nodeCode = updateNodes.lData[nodeID],
+                parentCode = flatParents.lData[nodeCode];
+
+        bool isLeaf = nodeCode < flatLeaves.lLength;
+
+        if (!isLeaf)
+            nodeCode -= flatLeaves.lLength;
+
+       _Parameter * parentConditionals = iNodeCache +	(parentCode  * siteCount) * alphabetDimension;
+
+	if (taggedInternals.lData[parentCode] == 0)
+		// mark the parent for update and clear its conditionals if needed
+        {
+            taggedInternals.lData[parentCode]	  = 1; // only do this once
+            for (long k = 0, k3 = 0; k < siteCount; k++)
+                for (long k2 = 0; k2 < alphabetDimension; k2++)
+                    parentConditionals [k3++] = 1.0;
+        }
+		
+		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
+                                               ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
+		
+        for (int a1 = 0; a1 < alphabetDimension; a1++)
+        {
+            for (int a2 = 0; a2 < alphabetDimension; a2++)
+            {
+                ((fpoint*)model)[nodeID*alphabetDimension*alphabetDimension+a1*alphabetDimension+a2] =
+                    tMatrix[a1*alphabetDimension+a2];
+            }
+        }
+    }
+ //   printf("setup the model, fixed tagged internals!\n");
+ //   printf("flatleaves: %i\n", flatLeaves.lLength);
+ //   printf("flatParents: %i\n", flatParents.lLength);
+//    printf("flatCleaves: %i\n", flatCLeaves.lLength);
+//    printf("flatNodes: %i\n", flatNodes.lLength);
+//    printf("updateNodes: %i\n", updateNodes.lLength);
+//    printf("flatTree: %i\n", flatTree.lLength);
+
+    //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
+//	printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
+    for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
+    {
+        ((fpoint*)node_cache)[i] = iNodeCache[i];
+//		double t = iNodeCache[i];        
+//		if (i%(siteCount*alphabetDimension) == 0)
+//            printf("Got another one %g\n",t);
+		//printf ("%i\n",i);
+    }
+//    printf("Built node_cache\n");
+    if (ambiguousNodes)
+        for (int i = 0; i < nodeResCount; i++)
+            ((fpoint*)nodRes_cache)[i] = lNodeResolutions->theData[i];
+//    printf("Built nodRes_cache\n");
+	for (int i = 0; i < nodeFlagCount; i++)
+		((fpoint*)nodFlag_cache)[i] = lNodeFlags[i];
+
+ //   printf("Created all of the arrays!\n");
+
+    // alright, by now taggedInternals have been taken care of, and model has
+    // been filled with all of the transition matrices. 
+
     // time stuff:
     time_t dtimer;
     time_t htimer;
-	
+    
     // set and log Global and Local work size dimensions
     
-    szLocalWorkSize = roundDoubleUpToNextPowerOfTwo(chars);
-	//  szGlobalWorkSize = NODES * SITES * CHARACTERS;
-    szGlobalWorkSize = roundDoubleUpToNextPowerOfTwo(sites) * roundDoubleUpToNextPowerOfTwo(chars);
-    localMemorySize = roundDoubleUpToNextPowerOfTwo(chars);
-    printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
-           szGlobalWorkSize, szLocalWorkSize, 
-           (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
-	
-    // Allocate and initialize host arrays 
-    //*************************************************
-    printf( "Allocate and Init Host Mem...\n"); 
-/*
-    node_cache      = (void*)malloc (sizeof(clfp)*CHARACTERS*SITES);
-    parent_cache    = (void*)malloc (sizeof(clfp)*CHARACTERS*SITES);
-    scalings        = (void*)malloc (sizeof(int)*CHARACTERS*SITES);
-    model           = (void*)malloc (sizeof(clfp)*CHARACTERS*CHARACTERS);
-//    Golden          = (void*)malloc (sizeof(clfp)*CHARACTERS*SITES);
-	
-    long tempindex = 0;
-    // initialize the vectors
-    for (tempindex = 0; tempindex < (CHARACTERS*SITES); tempindex++)
-    {
-        ((fpoint*)node_cache)[tempindex] = 1./CHARACTERS; // this is just dummy filler
-//        ((fpoint*)Golden)[tempindex] = 1.;
-        ((fpoint*)parent_cache)[tempindex] = 1.;
-        ((int*)scalings)[tempindex] = 0;
-    }
-	
-    // initialize the model
-    for (tempindex = 0; tempindex < (CHARACTERS*CHARACTERS); tempindex++)
-    {
-        ((fpoint*)model)[tempindex] = 1./CHARACTERS; // this is just dummy filler
-    }
-*/	
+    szLocalWorkSize = roundUpToNextPowerOfTwo(alphabetDimension);
+    szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) *
+        roundUpToNextPowerOfTwo(alphabetDimension);
+    localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
+//    printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
+//           szGlobalWorkSize, szLocalWorkSize, 
+//           (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
+    
     //**************************************************
     dtimer = time(NULL); 
-	
+    
     //Get an OpenCL platform
     ciErr1 = clGetPlatformIDs(1, &cpPlatform, NULL);
-	
-    printf("clGetPlatformID...\n"); 
+    
+//    printf("clGetPlatformID...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clGetPlatformID, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
+    
     //Get the devices
     ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &cdDevice, NULL);
-    printf("clGetDeviceIDs...\n"); 
+ //   printf("clGetDeviceIDs...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clGetDeviceIDs, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -164,118 +234,193 @@ int oclmain()
     
     size_t maxWorkGroupSize;
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_MAX_WORK_GROUP_SIZE, 
-							 sizeof(size_t), &maxWorkGroupSize, NULL);
+                             sizeof(size_t), &maxWorkGroupSize, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Getting max work group size failed!\n");
     }
-    printf("Max work group size: %lu\n", (unsigned long)maxWorkGroupSize);
+//    printf("Max work group size: %lu\n", (unsigned long)maxWorkGroupSize);
     
     cl_uint extcheck;
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, 
-							 sizeof(cl_uint), &extcheck, NULL);
-    if (extcheck ==0 ) 
+                             sizeof(cl_uint), &extcheck, NULL);
+    if (extcheck == 0 ) 
     {
-        printf("Device does not support double precision.\n");
+//        printf("Device does not support double precision.\n");
     }
     
     size_t returned_size = 0;
     cl_char vendor_name[1024] = {0};
     cl_char device_name[1024] = {0};
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_VENDOR, sizeof(vendor_name), 
-							 vendor_name, &returned_size);
+                             vendor_name, &returned_size);
     ciErr1 |= clGetDeviceInfo(cdDevice, CL_DEVICE_NAME, sizeof(device_name), 
-							  device_name, &returned_size);
+                              device_name, &returned_size);
     assert(ciErr1 == CL_SUCCESS);
-    printf("Connecting to %s %s...\n", vendor_name, device_name);
-	
+//    printf("Connecting to %s %s...\n", vendor_name, device_name);
+    
     //Create the context
     cxGPUContext = clCreateContext(0, 1, &cdDevice, NULL, NULL, &ciErr1);
-    printf("clCreateContext...\n"); 
+//    printf("clCreateContext...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateContext, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
+    
     // Create a command-queue
     cqCommandQueue = clCreateCommandQueue(cxGPUContext, cdDevice, 0, &ciErr1);
-    printf("clCreateCommandQueue...\n"); 
+//    printf("clCreateCommandQueue...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateCommandQueue, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
-    // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
-    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, 
-								  sizeof(clfp) * chars * sites, NULL, &ciErr1);
-    cmModel = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY, 
-							 sizeof(clfp) * chars * chars, NULL, &ciErr2);
+
+
+//    printf("Setup all of the OpenCL stuff!\n");
+
+    // Allocate the OpenCL buffer memory objects for the input and output on the
+    // device GMEM
+    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
+                    sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, NULL,
+                    &ciErr1);
+//    printf("clCreateBuffer...\n");
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("1Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+                    sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength, 
+                    NULL, &ciErr2);
     ciErr1 |= ciErr2;
-    cmParent_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE, 
-									sizeof(clfp) * chars * sites, NULL, &ciErr2);
+//    printf("clCreateBuffer...\n");
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("2Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+                    sizeof(clfp)*nodeResCount, NULL, &ciErr2);
     ciErr1 |= ciErr2;
-    cmScalings = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
-								sizeof(cl_int) * chars * sites, NULL, &ciErr2);
-    ciErr1 |= ciErr2;
-    printf("clCreateBuffer...\n"); 
+//    printf("clCreateBuffer...\n");
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("3Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        switch(ciErr1)
+        {
+            case   CL_INVALID_CONTEXT: printf("CL_INVALID_CONTEXT\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
+            case   CL_INVALID_BUFFER_SIZE: printf("CL_INVALID_BUFFER_SIZE\n"); break;
+            case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break; 
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); 
+        }
+        Cleanup(EXIT_FAILURE);
+    }
+	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+					sizeof(cl_long)*nodeFlagCount, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
+
+//    printf("Made all of the buffers on the device!\n");
+    
+//    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
-	// Create the program
+
     
-	// Read the OpenCL kernel in from source file
-    
+    // Create the program
+    // Read the OpenCL kernel in from source file
+    // My options for figuring out the proper parent and child character indices for aquisition and insertion of data are as follows:
+    //      -- pass the conversion arrays and use the globalID and localID to figure out the site number offset from the childNodeIndex
+    //          and parentNodeIndex offsets respectively, using the localID as the final character offset.
+    //      -- the siteNumber is easy, it is the globalID divided by the alphabet dimension. We're padding the alphabet dimension, however, 
+    //          so we have to use the roundCharacters variable I pass in. Thus XNodeIndex*sites*characters + (globalID/roundCharacters)*
+    //          characters + localID is the corrected character index in the iNodeCache array. 
+    // This question brings about a comparison. What are the local and global ID's used for in the toy implementation, and are these 
+    //      necessary/advantageous in the real implementation. 
+    // So the global ID for a given execution of the kernel is unique for all parent characters in the entire node's analysis. 
+    // The local ID is this same parent character's unique ID within a site. This has consequences with character # rounding as well as 
+    //      with local caching. 
+    // Just as a side note however, I still need the nodeIndex for accessing the correct node's portion of the iNodeCache.
+    // Another note, you cannot just pass isLeaf. You have to look it up. Which means putting flatLeaves.lLength on the GPU
+
+    // So dealing with the leaf/not leaf issues. If it is a leaf and the node is ambiguous, lNodeResolutions is a flat array of length
+    //      (count(ambiguous nodes in the analysis)*alphabetDimension). So instead of pointing nodeScratch to a section of iNodeCache
+    //      we just point it to a section of lNodeResolutions.
+    // For non-ambiguous leaves there is no point in looping through the possible child characters for each parent character. Rather
+    //      we multiply each parent character by the value in the transition matrix that corresponds to that parent character at the 
+    //      child character that has a non-zero value. 
+    // Note that sites, characters and nodes are real numbers, not rounded. 
+    // I want to say that you don't have to drop out the inner loop just because you have an unambiguous leaf. 
+    //      This has to do with how the transition matrices are stored. The tMatrix pointer is leaf dependent. I have been pulling 
+    //      Whatever it points to and shoving it in one array assuming that the dimensionalities of the two options are equal. If they 
+    //      are not then a lot of code is wrong. But it would be advantageous to construct this consistent array, so I will change
+    //      the possible outcomes if necessary rather than change the device code. 
+	// So what is currently in place will account for the model not being the same leaf vs internal node. 
+	// For ambiguous leaves, you just fill the nodeScratch with something other than what is currently in the iNodeCache, the model is 
+	// 		the same. 
+	// For unambiguous leaves you fill the modelScratch like normal, but this part of the model array is different because it is a leaf. 
+	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
+	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
+	// 		wont be a problem.
 	const char *program_source = "\n" \
-	"#pragma OPENCL EXTENSION cl_khr_fp64: enable																				\n" \
-	"" FLOATPREC                                                                                                                    \
-	"__kernel void FirstLoop(__global const fpoint* node_cache, __global const fpoint* model, __global fpoint* parent_cache, 	\n" \
-    "    __local fpoint* nodeScratch, __local fpoint * modelScratch, int nodes, int sites, int characters,						\n" \
-    "   __global int* scalings, fpoint uflowthresh, fpoint scalar)																\n" \
-	"{																															\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter									\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within the site.											\n" \
-	"	if ((parentCharGlobal/characters) >= sites) return;																		\n" \
-	"	if (parentCharLocal >= characters) return;																				\n" \
-	"   nodeScratch[parentCharLocal] = node_cache[parentCharGlobal];															\n" \
-    "   modelScratch[parentCharLocal] = model[parentCharLocal * characters + parentCharLocal];									\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"   fpoint sum = 0.;																										\n" \
-    "   long myChar;																											\n" \
-    "   for (myChar = 0; myChar < characters; myChar++)																			\n" \
-    "   {																														\n" \
-    "       sum += nodeScratch[myChar] * modelScratch[myChar];																	\n" \
-    "   }																														\n" \
-    "   barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-    "   while (parent_cache[parentCharGlobal] < uflowthresh)																	\n" \
-    "   {																														\n" \
-    "       parent_cache[parentCharGlobal] *= scalar;																			\n" \
-    "    	scalings[parentCharGlobal] += 1;																					\n" \
-    "	}																														\n" \
-	"   parent_cache[parentCharGlobal] *= sum;																					\n" \
-	"}																															\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
+    "    __global const long* nodFlag_cache, __local fpoint* nodeScratch, __local fpoint* modelScratch, long leafState, long sites, \n" \
+    "    long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters)	          				                \n" \
+	"{																														    	\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis    	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within the site.										    	\n" \
+	"	if ((parentCharGlobal/roundCharacters) >= sites) return;// filter out those parent characters that were added to round the  \n" \
+    "   // number of sites to a power of two                                                                                        \n" \
+	"	if (parentCharLocal >= characters) return; // that won't catch all the characters, as some were inserted into each site     \n" \
+    "   // to round the number of characters up to a power of two.                                                                  \n" \
+    "   int siteNumber = parentCharGlobal/roundCharacters;                                                                          \n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                      \n" \
+    "   int childCharacterIndex = childNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                        \n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + siteNumber];															\n" \
+    "   if (leafState == 0)                                                                                                         \n" \
+	"       nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			  	\n" \
+    "   else if (siteState < 0)                                                                                                     \n" \
+    "       nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                               \n" \
+    "   modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal]; \n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	" 	if (leafState == 1 && siteState >= 0)																						\n" \
+	"		node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
+	"	else																														\n" \
+	"	{																															\n" \
+	"   	fpoint sum = 0.;																								    	\n" \
+    "   	long myChar;																									    	\n" \
+    "   	for (myChar = 0; myChar < characters; myChar++)																	   		\n" \
+    "   	{																												     	\n" \
+    "   	    sum += nodeScratch[myChar] * modelScratch[myChar];															    	\n" \
+    "   	}																													    \n" \
+    "   	barrier(CLK_LOCAL_MEM_FENCE);																				    		\n" \
+	"   	node_cache[parentCharacterIndex] *= sum;					      												    	\n" \
+	"	}																															\n" \
+	"}																													    		\n" \
 	"\n";
     
     
-    //	printf("LoadProgSource (%s)...\n", cSourceFile); 
-    //	char *program_source = load_program_source(cSourceFile, argv[0],  &szKernelLength);
-	cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
+    cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
                                           NULL, &ciErr1);
-	
-    printf("clCreateProgramWithSource...\n"); 
+    
+//    printf("clCreateProgramWithSource...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
+    
     ciErr1 = clBuildProgram(cpProgram, 1, &cdDevice, NULL, NULL, NULL);
-    printf("clBuildProgram...\n"); 
-	
+//    printf("clBuildProgram...\n"); 
+    
     // Shows the log
     char* build_log;
     size_t log_size;
@@ -287,92 +432,106 @@ int oclmain()
     build_log[log_size] = '\0';
     printf("%s", build_log);
     delete[] build_log;
-	
+    
     if (ciErr1 != CL_SUCCESS)
     {
-		printf("%i\n", ciErr1); //prints "1"
-		switch(ciErr1)
-		{
-			case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
-			case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
-			case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
-			case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
-			case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
-			case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
-			case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
-			case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
-			case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-			default: printf("Strange error\n"); //This is printed
-		}
-		printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-		Cleanup(EXIT_FAILURE);
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
+            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
+            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
+            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
+            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
+            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
+            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
+        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
     }
-	
+    
     // Create the kernel
     ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
-    printf("clCreateKernel (FirstLoop)...\n"); 
+//    printf("clCreateKernel (FirstLoop)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
-	
-    int tempNodeCount = nodes;
-    int tempSiteCount = sites;
-    int tempCharCount = chars;
-	
+    
+    long tempLeafState = 1;
+    long tempSiteCount = siteCount;
+    long tempCharCount = alphabetDimension;
+	long tempChildNodeIndex = 0;
+	long tempParentNodeIndex = 0;
+	long tempRoundCharCount = localMemorySize;
+
     // Set the Argument values
-    ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
-    ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel);
-    ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmParent_cache);
-    ciErr1 |= clSetKernelArg(ckKernel, 3, localMemorySize * sizeof(fpoint), NULL);
-    ciErr1 |= clSetKernelArg(ckKernel, 4, localMemorySize * sizeof(fpoint), NULL);
-    ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(cl_int), (void*)&tempNodeCount);
-    ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(cl_int), (void*)&tempSiteCount);
-    ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_int), (void*)&tempCharCount);
-    ciErr1 |= clSetKernelArg(ckKernel, 8, sizeof(cl_mem), (void*)&cmScalings);
-    ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(clfp), (void*)&uflowThresh);
-    ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(clfp), (void*)&scalar);
-    printf("clSetKernelArg 0 - 10...\n\n"); 
+	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
+	ciErr1 |= clSetKernelArg(ckKernel, 4, localMemorySize * sizeof(fpoint),	NULL);
+	ciErr1 |= clSetKernelArg(ckKernel, 5, localMemorySize * sizeof(fpoint),	NULL);
+	ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(cl_long), (void*)&tempLeafState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckKernel, 8, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&tempRoundCharCount); 
+
+
+//    printf("clSetKernelArg 0 - 10...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clSetKernelArg, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
+    
     // --------------------------------------------------------
     // Start Core sequence... copy input data to GPU, compute, copy results back
-	
     // Asynchronous write of data to GPU device
-    ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0, 
-								  sizeof(clfp) * chars * sites, node_cache, 0, NULL, NULL);
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel, CL_FALSE, 0, 
-								   sizeof(clfp) * chars * chars, model, 0, NULL, NULL);
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmParent_cache, CL_FALSE, 0, 
-								   sizeof(clfp) * chars * sites, parent_cache, 0, NULL, NULL);
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmScalings, CL_FALSE, 0,
-								   sizeof(cl_int) * chars * sites, scalings, 0, NULL, NULL);
-    printf("clEnqueueWriteBuffer (node_cache, parent_cache and model)...\n"); 
+    ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
+                sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, node_cache, 
+                0, NULL, NULL);
+
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
+                sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength,
+                model, 0, NULL, NULL);
+
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
+                sizeof(clfp)*nodeResCount, nodRes_cache, 0, NULL, NULL);
+
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
+                sizeof(cl_long)*nodeFlagCount, nodFlag_cache, 0, NULL, NULL);
+    
+//    printf("clEnqueueWriteBuffer (node_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	
+    
     // Launch kernel
-    
-    int nodeIndex;
-	
-	//    clock_gettime(CLOCK_REALTIME, &begin);
-    
-    printf("clEnqueueNDRangeKernel (FirstLoop)...\n"); 
-    for (nodeIndex = 0; nodeIndex < nodes; nodeIndex++)
+    for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
-		
-        
-        
-        ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
+        bool isLeaf = nodeIndex < flatLeaves.lLength;
+        int childIndex = nodeIndex;
+        if (!isLeaf) 
+		{
+			childIndex -= flatLeaves.lLength;
+			tempLeafState = 0;
+		}
+		long tempChildNodeIndex = updateNodes.lData[childIndex];
+		long tempParentNodeIndex = flatParents.lData[childIndex];
+		ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(cl_long), (void*)&tempLeafState);
+		ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex);
+		ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex);
+			
+		ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
 										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
         
         if (ciErr1 != CL_SUCCESS)
@@ -402,16 +561,13 @@ int oclmain()
 			Cleanup(EXIT_FAILURE);
         }
 		
-		//      ciErr1 = clEnqueueBarrier(cqCommandQueue);
-		
     }
     
-	//    clock_gettime(CLOCK_REALTIME, &end);
-	
     // Synchronous/blocking read of results, and check accumulated errors
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmParent_cache, CL_TRUE, 0, sizeof(clfp) * chars * sites, parent_results, 0, NULL, NULL);
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmScalings, CL_TRUE, 0, sizeof(cl_int) * chars * sites, scalings, 0, NULL, NULL);
-    printf("clEnqueueReadBuffer...\n\n"); 
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
+            sizeof(clfp)*alphabetDimension*siteCount*(flatNodes.lLength), node_cache, 0,
+            NULL, NULL);
+//    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -422,8 +578,8 @@ int oclmain()
             case   CL_INVALID_MEM_OBJECT: printf("CL_INVALID_MEM_OBJECT\n"); break;
             case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;   
             case   CL_INVALID_EVENT_WAIT_LIST: printf("CL_INVALID_EVENT_WAIT_LIST\n"); break;
-				//          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_MISALIGNED_SUB_BUFFER_OFFSET\n"); break;
-				//          case   CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: printf("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST\n"); break;
+                //          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_MISALIGNED_SUB_BUFFER_OFFSET\n"); break;
+                //          case   CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: printf("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST\n"); break;
             case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break;
             case   CL_OUT_OF_RESOURCES: printf("CL_OUT_OF_RESOURCES\n"); break;
             case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
@@ -433,67 +589,17 @@ int oclmain()
         Cleanup(EXIT_FAILURE);
     }
     //--------------------------------------------------------
-	
+    
     
     clFinish(cqCommandQueue);
-    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
-	//    double timeDifference = ((double)end.tv_sec + ((double)end.tv_nsec/1000.0))-((double)begin.tv_sec + ((double)begin.tv_nsec/1000.0));
-	//    printf("%f seconds on device\n", timeDifference);
-    
+//    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
     htimer = time(NULL);
-	
-	
-    // Compute and compare results for golden-host and report errors and pass/fail
-//    printf("Comparing against Host/C++ computation...\n\n"); 
+
+    for (int i = 0; i < (flatNodes.lLength)*siteCount*alphabetDimension; i++)
+    {
+       iNodeCache[i] = ((_Parameter*)node_cache)[i];
+    }
     
-//    FirstLoopHost ((const fpoint*)node_cache, (const fpoint*)model, (fpoint*)Golden);
-	
-//    printf("%f seconds on host\n", difftime(time(NULL), htimer));
-	
-	/*
-	 int goldenLoop = 0;
-	 for (goldenLoop = 0; goldenLoop < SITES; goldenLoop++)
-	 {
-	 printf("Golden: %e\n", ((fpoint*)Golden)[goldenLoop*CHARACTERS]);
-	 }
-	 */
-	
-	
-	// Unscaling
-	//***************************************************************************
-    int scIndex;
-    for (scIndex = 0; scIndex < chars * sites; scIndex++)
-    {
-        while (((int*)scalings)[scIndex] > 0)
-        {
-            ((fpoint*)parent_results)[scIndex] /= scalar;
-            ((int*)scalings)[scIndex]--;
-        }
-    }
-	
-/*	
-    bool match = true;
-	//        int unmatching = 0;
-	//        long firstUnmatch = -1;
-	//        long lastUnmatch = -1;
-    int verI;
-    for (verI  = 0; verI < CHARACTERS*SITES; verI++)
-    {
-		if (verI%(SITES)==0)
-			printf("Device: %e, Host: %e, Scalings: %i\n", ((fpoint*)parent_cache)[verI], ((fpoint*)Golden)[verI], ((int*)scalings)[verI]); 
-		//                if (((fpoint*)parent_cache)[i] != ((fpoint*)Golden)[i]) match = false;
-        if (((fpoint*)parent_cache)[verI] != ((fpoint*)Golden)[verI])
-        {
-            match = false;
-			//                        unmatching++;
-			//                        if (firstUnmatch == -1) firstUnmatch = i;
-			//                        if (lastUnmatch < i) lastUnmatch = i;
-        }
-    }
-	//        printf("Unmatching: %i, First: %d, Last: %d\n", unmatching, firstUnmatch, lastUnmatch);
-    printf("%s\n\n", (match) ? "PASSED" : "FAILED");
-*/	
-	
     // Cleanup and leave
     Cleanup (EXIT_SUCCESS);
     
@@ -501,19 +607,19 @@ int oclmain()
 }
 
 
-int launchmdsocl(double * parent_results,
-                 long siteCount,
-                 double nodeCount,
-                 long alphabetDimension,
-                 _SimpleList& updateNodes,
-                 _SimpleList& flatParents,
-                 _SimpleList& flatNodes,
-                 _SimpleList& flatCLeaves,
-                 _SimpleList& flatTree,
-                 _Parameter* iNodeCache,
-                 long* lNodeFlags,
-                 _SimpleList taggedInternals,
-                 _GrowingVector* lNodeResolutions)
+int launchmdsocl(long esiteCount,
+                 long enodeCount,
+                 long ealphabetDimension,
+                 _SimpleList& eupdateNodes,
+                 _SimpleList& eflatParents,
+                 _SimpleList& eflatNodes,
+                 _SimpleList& eflatCLeaves,
+                 _SimpleList& eflatLeaves,
+                 _SimpleList& eflatTree,
+                 _Parameter* eiNodeCache,
+                 long* elNodeFlags,
+                 _SimpleList etaggedInternals,
+                 _GrowingVector* elNodeResolutions)
 {
     // so I have all of this in OpenCL land now. All of the operations that remain should be setting up memory or in the Node loop above. 
     
@@ -535,7 +641,6 @@ int launchmdsocl(double * parent_results,
     // transition matrix:
         // proof of concept: model_cache
         // hyphy: flatCLeaves or flatTree->GetCompExp(0)
-        // OpenCL: Don't know! TODO!
         // build now, move onto GPU all at once, move a chunk into memory in each kernel. 
     
     // To move onto GPU:
@@ -552,32 +657,23 @@ int launchmdsocl(double * parent_results,
     // save all of the rest of the above somewhere. 
     
     // run oclmain()
+//    printf("Made it to the pass-off Function!");
     
-    // put the result in parent_results
+    siteCount = esiteCount;
+    alphabetDimension = ealphabetDimension;
+    updateNodes = eupdateNodes;
+    flatParents = eflatParents;
+    flatNodes = eflatNodes;
+    flatCLeaves = eflatCLeaves;
+    flatLeaves = eflatLeaves;
+    flatTree = eflatTree;
+    iNodeCache = eiNodeCache;
+    lNodeFlags = elNodeFlags;
+    taggedInternals = etaggedInternals;
+    lNodeResolutions = elNodeResolutions;
+     
     
-    
-    
-#ifdef MDSOCL 
-    
-    
-   /* 
-    node_cache = (void *)extnode_cache;
-    parent_cache = (void *)extparent_cache;
-    scalings = (void *)extscalings;
-    model = (void *)extmodel;
-    parent_results = (void *)extparent_results;
-    sites = extSites;
-    nodes = extNodes;
-    chars = extChars;
-    
-    double *model = (double *)malloc (sizeof(double)*characters*characters);
-    double *node_cache = (double *)malloc (sizeof(double)*characters*sites);
-    double *parent_cache = (double *)malloc (sizeof(double)*characters*sites);
-    int *scalings = (int *)malloc (sizeof(int)*characters*sites);
-   */ 
-    
-    
-#endif
+
     return oclmain();
 }
 
@@ -585,80 +681,42 @@ int launchmdsocl(double * parent_results,
 void Cleanup (int iExitCode)
 {
     // Cleanup allocated objects
-    printf("Starting Cleanup...\n\n");
+//    printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
     if(ckKernel)clReleaseKernel(ckKernel);  
     if(cpProgram)clReleaseProgram(cpProgram);
     if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
     if(cxGPUContext)clReleaseContext(cxGPUContext);
     if(cmNode_cache)clReleaseMemObject(cmNode_cache);
-    if(cmModel)clReleaseMemObject(cmModel);
-    if(cmParent_cache)clReleaseMemObject(cmParent_cache);
-	
+    if(cmModel_cache)clReleaseMemObject(cmModel_cache);
+    if(cmNodRes_cache)clReleaseMemObject(cmNodRes_cache);
+    if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
+    
     // Free host memory
     free(node_cache); 
     free(model);
-    free (parent_cache);
-    free(Golden);
+    free(nodRes_cache);
+    free(nodFlag_cache);
     
     // exit (iExitCode);
 }
 
-// "Golden" Host processing vector addition function for comparison purposes
-// *********************************************************************
-void FirstLoopHost(const fpoint* hnode_cache, const fpoint* hmodel, fpoint* hparent_cache)
-{
-    long index, myChar, parentChar, site;
-	
-    fpoint sum;
-	
-	//        long i=0;
-	//        for (i=0;i< CHARACTERS*SITES;i++)
-	//        {
-	//                if (i%10000==0)
-	//                {
-	//                        printf("Node_cache: %e, Parent_cache: %e\n", ((fpoint*)hnode_cache)[i], ((fpoint*)hparent_cache)[i]);
-	//                }
-	//        }
-	
-    for (index = 0; index < nodes; index++) // this is meant to simulate looping over tree nodes
-    {        
-        for (site = 0; site < sites; site++)
-        {
-            int siteIndex = site*chars;
-            for (parentChar = 0; parentChar < chars; parentChar++)
-            {
-                sum = 0.;
-                //here
-                for (myChar = 0; myChar < chars; myChar++)
-                {
-                    sum += hnode_cache[site*chars+myChar] * hmodel[parentChar*chars+myChar];
-                }
-                hparent_cache[siteIndex+parentChar] *= sum;
-            }
-        }
-		//                printf("Index: %i, ParentCache: %e\n", index, hparent_cache[0]);
-    }      
-	//        for (index = 0; index < SITES; index++)
-	//        {
-	//                printf("hparent_cache: %e\n", hparent_cache[index*CHARACTERS]);
-	//        }
-}
-
 unsigned int roundUpToNextPowerOfTwo(unsigned int x)
 {
-	x--;
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
-	x++;
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
     
-	return x;
+    return x;
 }
 
 double roundDoubleUpToNextPowerOfTwo(double x)
 {
-	return pow(2, ceil(log2(x)));
+    return pow(2, ceil(log2(x)));
 }
+
+#endif

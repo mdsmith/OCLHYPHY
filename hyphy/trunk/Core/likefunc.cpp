@@ -3852,6 +3852,7 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 		if (leafCount > 1)
 		{
 			checkPointer (conditionalInternalNodeLikelihoodCaches[i] = new _Parameter [patternCount*stateSpaceDim*iNodeCount*cT->categoryCount]);
+			printf ("Main process allocated size %i\n", patternCount*stateSpaceDim*iNodeCount*cT->categoryCount);
 			checkPointer (branchCaches[i]							 = new _Parameter [2*patternCount*stateSpaceDim*cT->categoryCount]);
 		}
 		
@@ -3917,6 +3918,8 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 		}
 		conditionalTerminalNodeLikelihoodCaches.AppendNewInstance (ambigs);
 		delete [] columnBlock; delete [] translationCache;
+
+        // MDSOCL create likefuncocl instance and pass it iNodeCache
 	}
 }
 
@@ -8153,8 +8156,8 @@ those matrices that need to be reexponentiated. Note that the first set can have
 */    
 
     // this is to update the GUI.
-    if (divideBy && (likeFuncEvalCallCount % divideBy == 0))
-        yieldCPUTime();
+//    if (divideBy && (likeFuncEvalCallCount % divideBy == 0))
+//        yieldCPUTime();
             
     return t->VerySimpleLikelihoodEvaluator (changedBranches, 
                                               df, 
