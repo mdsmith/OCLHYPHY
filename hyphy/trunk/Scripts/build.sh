@@ -167,6 +167,10 @@ then
 fi
 
 gpuType="NVIDIA"
+if [ ${AMDAPPSDKROOT} != "" ]
+then 
+	gpuType="AMD";
+fi
 
 if [ $1 = "OCL" ] 
 then

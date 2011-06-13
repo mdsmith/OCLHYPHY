@@ -87,6 +87,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	  _hyphyCategoryHMM								0x2
 #define   _hyphyCategoryCOP								0x4
 
+
+
 //_______________________________________________________________________________________
 
 struct	MSTCache

@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	long likeFuncEvalCallCount,
 			 matrixExpCount;
 
+#ifdef MDSOCL
 int launchmdsocl(long siteCount,
                  long nodeCount,
                  long alphabetDimension,
@@ -51,6 +52,7 @@ int launchmdsocl(long siteCount,
                  long* lNodeFlags,
                  _SimpleList taggedInternals,
                  _GrowingVector* lNodeResolutions);
+#endif
 
 #ifdef	_SLKP_LFENGINE_REWRITE_
 
@@ -218,6 +220,33 @@ void		_TheTree::FillInConditionals		(_DataSetFilter*		theFilter, _Parameter*	iNo
 	}
 }
 
+#ifdef MDSOCL
+/*----------------------------------------------------------------------------------------------------------*/
+_Parameter _TheTree::OCLLikelihoodEvaluator (			_SimpleList&		     updateNodes, 
+														_DataSetFilter*		 theFilter,
+                                                        _Parameter*			 iNodeCache,
+                                                        long	   *			 lNodeFlags,
+                                                        _GrowingVector*		 lNodeResolutions,
+														_OCLEvaluator& OCLEval)
+{
+
+	_SimpleList		taggedInternals					(flatNodes.lLength, 0, 0);
+	//printf("Launching a tree in OpenCL...\n");
+	return ((_Parameter) OCLEval.launchmdsocl(			updateNodes,
+														flatParents,
+														flatNodes,
+														flatCLeaves,
+														flatLeaves,
+														flatTree,
+														theProbs,
+														theFilter->theFrequencies,
+														lNodeFlags,
+														taggedInternals,
+														lNodeResolutions));
+}
+
+#endif
+
 /*----------------------------------------------------------------------------------------------------------*/
 
 
@@ -242,11 +271,11 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                                                         
 					siteCount			  =			theFilter->NumberDistinctSites();
                         // how many unique sites are there
-#ifdef MDSOCL
 
-    long sites = siteCount;
-    long characters = alphabetDimension;
-    long nodeCount = updateNodes.lLength;
+
+//    long sites = siteCount;
+//    long characters = alphabetDimension;
+//    long nodeCount = updateNodes.lLength;
 
     // so it looks like everything to this point can be done here, in place. 
 
@@ -280,9 +309,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
     // so it looks like childVector is a pointer to a subset of iNode cache that can be copied out to a new array and then passed onto the GPU
 
-	printf("Launching a tree in OpenCL...\n");
 
-    int test = launchmdsocl(siteCount,
+/*    int test = launchmdsocl(siteCount,
                             nodeCount,
                             alphabetDimension,
                             updateNodes,
@@ -295,16 +323,29 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                             lNodeFlags,
                             taggedInternals,
                             lNodeResolutions);
-
+*/
     // The root node stuff can be done here, in place, assuming the GPU code returns (probably via pointer), the resulting array. 
-    _Parameter  * rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
+//    _Parameter  * rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
     // the root is always the LAST internal node in all lists
-    result = 0.0;
+//    result = 0.0;
 
-#else
   
-	printf("Launching a tree in host...\n"); 
+	//printf("Launching a tree in host...\n"); 
+	printf("Update Nodes:");
+    for (int i = 0; i < updateNodes.lLength; i++)
+    {
+        printf(" %i ", updateNodes.lData[i]);
+    }
+    printf("\n");
 
+    printf("Tagged Internals:");
+    for (int i = 0; i < taggedInternals.lLength; i++)
+    {
+        printf(" %i", taggedInternals.lData[i]);
+    }
+    printf("\n");
+
+	
 	for  (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
 	{
 		long	nodeCode   = updateNodes.lData [nodeID],
@@ -400,6 +441,14 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         }
     }
         
+	//printf("iNodeCache: ");
+	for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
+	{
+		if (i%(alphabetDimension*siteCount) == 0) printf("NEWNODE \n");
+		printf(" %g", (double)(iNodeCache[i]));
+	}
+	printf("\n");
+//
     // now just process the root and return the likelihood
 
     _Parameter	* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
@@ -407,10 +456,11 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                   result = 0.0;
 
 
-#endif
 
+	printf("Rootconditionals: ");
     for (long siteID = 0; siteID < siteCount; siteID++)
     {
+		printf(" %g", *rootConditionals);
         _Parameter accumulator = 0.;
         for (long p = 0; p < alphabetDimension; p++,rootConditionals++)
         {
@@ -424,9 +474,11 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         result += log(accumulator) * theFilter->theFrequencies [siteID];
                 // correct for the fact that identical alignment columns may appear more than once
     }
+	printf("\n");
 
  
     return result;
+
 }
 
 

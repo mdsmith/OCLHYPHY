@@ -70,6 +70,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+#ifdef MDSOCL
+	_OCLEvaluator *OCLEval;
+#endif
 
 #ifdef __MP__
 	#ifndef __MACHACKMP__
@@ -2411,6 +2414,15 @@ _Parameter	_LikelihoodFunction::Compute 		(void)
 //		ProfilerTerm();
 //		exit(0);
 //	}
+/*
+#ifdef MDSOCL
+	for (int i = 0; i < theTrees.lLength; i++)
+	{
+		OCLEval[i].~_OCLEvaluator();
+	}
+	delete [] OCLEval;
+#endif
+	*/
 	return result;
 #endif
 }
@@ -3823,6 +3835,10 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 	overallScalingFactorsBackup.Populate				  (theTrees.lLength, 0,0);
 	matricesToExponentiate.Clear();
 
+#ifdef MDSOCL
+	OCLEval = new _OCLEvaluator[theTrees.lLength]();
+#endif
+
 	evalsSinceLastSetup = 0;
 	
 	for (long i=0; i<theTrees.lLength; i++)
@@ -3922,6 +3938,10 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 
 		// MDSOCL so I am going to have to setup things here, then finish setting them up and executing them later
 		// TODO: setup context and iNodeCount array
+#ifdef MDSOCL
+		printf("Creating the OCLEval Context\n");
+		OCLEval[i].init(patternCount, theFilter->GetDimension(), conditionalInternalNodeLikelihoodCaches[i]);
+#endif
 
 	}
 }
@@ -7866,6 +7886,13 @@ void	_LikelihoodFunction::UpdateDependent (long index)
 void	_LikelihoodFunction::Cleanup (void)
 {
 	DeleteCaches();
+#ifdef MDSOCL
+	for (int i = 0; i < theTrees.lLength; i++)
+	{
+		OCLEval[i].~_OCLEvaluator();
+	}
+	delete [] OCLEval;
+#endif
 }
 	
 
@@ -8086,9 +8113,6 @@ _Parameter	_LikelihoodFunction::ComputeBlock (long index, _Parameter* siteRes, l
 	{
 #ifdef  _HY_GPU_EXAMPLE_CALCULATOR
 
-		// MDSOCL
-		// TODO: so here I will need to take a pointer from the caches I setup above, pass the new tree parameters, finish setup and execute. 
-		// pass new tree parameters and execute one LFcalc
 
        long		ciid			 = MAX(0,currentRateClass); // ignore this for now as it pertains to more complex evolutionary models
        
@@ -8166,12 +8190,49 @@ those matrices that need to be reexponentiated. Note that the first set can have
 //    if (divideBy && (likeFuncEvalCallCount % divideBy == 0))
 //        yieldCPUTime();
             
+		// MDSOCL
+		// TODO: so here I will need to take a pointer from the caches I setup above, pass the new tree parameters, finish setup and execute. 
+		// pass new tree parameters and execute one LFcalc
+
+#ifdef MDSOCL
+    /*return t->OCLLikelihoodEvaluator (changedBranches, 
+                                              df, 
+                                              conditionalInternalNodeLikelihoodCaches[index],     
+                                              conditionalTerminalNodeStateFlag[index],
+                                              (_GrowingVector*)conditionalTerminalNodeLikelihoodCaches(index),
+											  OCLEval[index]);
+*/
+#define OCLRUN
+
+#ifdef OCLRUN
+    _Parameter oclResult =  t->OCLLikelihoodEvaluator (changedBranches, 
+                                              df, 
+                                              conditionalInternalNodeLikelihoodCaches[index],     
+                                              conditionalTerminalNodeStateFlag[index],
+                                              (_GrowingVector*)conditionalTerminalNodeLikelihoodCaches(index),
+											  OCLEval[index]);
+	//printf("OCLResult: %g\n", oclResult);
+	return oclResult;
+#else 
+	 _Parameter hostResult =  t->VerySimpleLikelihoodEvaluator (changedBranches, 
+                                              df, 
+                                              conditionalInternalNodeLikelihoodCaches[index],     
+                                              conditionalTerminalNodeStateFlag[index],
+                                              (_GrowingVector*)conditionalTerminalNodeLikelihoodCaches(index) );
+	//printf("hostResult: %g\n", hostResult);
+	return hostResult;
+#endif
+//
+
+#else
+
     return t->VerySimpleLikelihoodEvaluator (changedBranches, 
                                               df, 
                                               conditionalInternalNodeLikelihoodCaches[index],     
                                               conditionalTerminalNodeStateFlag[index],
                                               (_GrowingVector*)conditionalTerminalNodeLikelihoodCaches(index) );
     
+#endif
 #else
 		long		catID			 = siteRes?currentRateClass:-1;
 		

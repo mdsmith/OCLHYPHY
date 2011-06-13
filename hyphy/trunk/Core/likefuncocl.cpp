@@ -7,7 +7,8 @@
 //
 // *********************************************************************
 
-#if defined(MDSOCL)
+
+#ifdef MDSOCL
 
 #include <stdio.h>
 #include <assert.h>
@@ -19,10 +20,6 @@
 #include <math.h>
 #include "calcnode.h"
 
-//struct timespec begin;
-//struct timespec end;
-
-	
 #if defined(__APPLE__)
 #include <OpenCL/OpenCL.h>
 typedef float fpoint;
@@ -46,91 +43,52 @@ typedef cl_double clfp;
 #pragma OPENCL EXTENSION cl_amd_fp64: enable
 #endif
 
-class _OCLEvaluator 
-{
+// time stuff:
+time_t dtimer;
+time_t htimer;
 
-	// OpenCL Vars
-	cl_context cxGPUContext;        // OpenCL context
-	cl_command_queue cqCommandQueue;// OpenCL command que
-	cl_platform_id cpPlatform;      // OpenCL platform
-	cl_device_id cdDevice;          // OpenCL device
-	cl_program cpProgram;           // OpenCL program
-	cl_kernel ckKernel;             // OpenCL kernel
-	size_t szGlobalWorkSize;        // 1D var for Total # of work items
-	size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
-	size_t localMemorySize;         // size of local memory buffer for kernel scratch
-	size_t szParmDataBytes;         // Byte size of context information
-	size_t szKernelLength;          // Byte size of kernel code
-	cl_int ciErr1, ciErr2;          // Error code var
-	char* cPathAndName = NULL;      // var for full paths to data, src, etc.
+cl_context cxGPUContext;        // OpenCL context
+cl_command_queue cqCommandQueue;// OpenCL command que
+cl_platform_id cpPlatform;      // OpenCL platform
+cl_device_id cdDevice;          // OpenCL device
+cl_program cpProgram;           // OpenCL program
+cl_kernel ckKernel;             // OpenCL kernel
+size_t szGlobalWorkSize;        // 1D var for Total # of work items
+size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
+size_t localMemorySize;         // size of local memory buffer for kernel scratch
+size_t szParmDataBytes;         // Byte size of context information
+size_t szKernelLength;          // Byte size of kernel code
+cl_int ciErr1, ciErr2;          // Error code var
+char* cPathAndName; 		    // var for full paths to data, src, etc.
 
-	cl_mem cmNode_cache;
-	cl_mem cmModel_cache;
-	cl_mem cmNodRes_cache;
-	cl_mem cmNodFlag_cache;
-	long siteCount, alphabetDimension; 
-	long* lNodeFlags;
-	_SimpleList    updateNodes, 
-					flatParents,
-					flatNodes,
-					flatCLeaves,
-					flatLeaves,
-					flatTree;
-	_Parameter* iNodeCache;
-	_SimpleList taggedInternals;
-	_GrowingVector* lNodeResolutions;
+cl_mem cmNode_cache;
+cl_mem cmModel_cache;
+cl_mem cmNodRes_cache;
+cl_mem cmNodFlag_cache;
+long siteCount, alphabetDimension; 
+long* lNodeFlags;
+_SimpleList    updateNodes, 
+				flatParents,
+				flatNodes,
+				flatCLeaves,
+				flatLeaves,
+				flatTree,
+				theFrequencies;
+_Parameter 		*iNodeCache,
+				*theProbs;
+_SimpleList taggedInternals;
+_GrowingVector* lNodeResolutions;
 
-	void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
-
-	// Forward Declarations
-	// *********************************************************************
-	void Cleanup (int iExitCode);
-	unsigned int roundUpToNextPowerOfTwo(unsigned int x);
-	double roundDoubleUpToNextPowerOfTwo(double x);
-	// So the only thing that needs to be passed as an update for each LF is flatTree and flatCLeaves
-	// as those are what goes into the new transition matrix stuff. 
-	// So I could have a launchmdsocl that takes everything and if stuff is not NULL than update, if it is
-	// null use the existing values. How about that?
-	// The problem is that I need to have essentially the first LF's information to properly set everything up. 
-	// And how do I have subsequent LF's not pass stuff. 
-	// Oi, how do I not have to convert this into an object...
-	// alright, I can probably keep all of this in likefunc. That is because the LFEvaluation is done in the
-	// calc node
-	int oclmain(void);
-	bool contextSet = false;
-	int setupContext(	_SimpleList& updateNodes,
-						_SimpleList& flatParents,
-						_SimpleList& flatNodes,
-						_SimpleList& flatCLeaves,
-						_SimpleList& flatLeaves,
-						_SimpleList& flatTree,
-						long* lNodeFlags,
-						_SimpleList taggedInternals,
-						_GrowingVector* lNodeResolutions);
+void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
 
 
-public:
-	_OCLEvaluator(		long esiteCount,
-						long ealphabetDimension,
-						long* eiNodeCache);
 
-
-	int launchmdsocl(	_SimpleList& updateNodes,
-						 _SimpleList& flatParents,
-						 _SimpleList& flatNodes,
-						 _SimpleList& flatCLeaves,
-						 _SimpleList& flatLeaves,
-						 _SimpleList& flatTree,
-						 long* lNodeFlags,
-						 _SimpleList taggedInternals,
-						 _GrowingVector* lNodeResolutions);
-
-
-}
-void _OCLEvaluator::_OCLEvaluator(	long esiteCount,
+void _OCLEvaluator::init(	long esiteCount,
 									long ealphabetDimension,
-									long* eiNodeCache)
+									_Parameter* eiNodeCache)
 {
+	cPathAndName = NULL;
+	contextSet = false;
     siteCount = esiteCount;
     alphabetDimension = ealphabetDimension;
     iNodeCache = eiNodeCache;
@@ -144,12 +102,12 @@ void _OCLEvaluator::_OCLEvaluator(	long esiteCount,
 // though honestly this solution is geared towards analyses with a larger number of sites. 
 
 // *********************************************************************
-int _OCLEvaluator::setupContext( )
+int _OCLEvaluator::setupContext(void)
 {
-//    printf("Made it to the oclmain() function!\n");
+    //printf("Made it to the oclmain() function!\n");
 
     //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
-    long nodeFlagCount = flatLeaves.lLength;
+    long nodeFlagCount = updateNodes.lLength*siteCount;
     long nodeResCount = lNodeResolutions->GetUsed();
 //    long nodeCount = flatLeaves.lLength + flatNodes.lLength + 1;
 //    long iNodeCount = flatNodes.lLength + 1;
@@ -161,7 +119,7 @@ int _OCLEvaluator::setupContext( )
         ambiguousNodes = false;
     }
 
-//    printf("Got the sizes of nodeRes and nodeFlag: %i, %i\n", nodeResCount, nodeFlagCount);
+    //printf("Got the sizes of nodeRes and nodeFlag: %i, %i\n", nodeResCount, nodeFlagCount);
 
     // Make transitionMatrixArray, do other host stuff:
     node_cache = (void*)malloc
@@ -170,34 +128,10 @@ int _OCLEvaluator::setupContext( )
         (sizeof(clfp)*nodeResCount);
 	nodFlag_cache = (void*)malloc(sizeof(cl_long)*nodeFlagCount);
 
-//    printf("Allocated all of the arrays!\n");
-
-    // Essentially I don't know why these numbers are what they are, should probably figure that out before moving on.
-    for (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
-    {
-        long    nodeCode = updateNodes.lData[nodeID],
-                parentCode = flatParents.lData[nodeCode];
-
-        bool isLeaf = nodeCode < flatLeaves.lLength;
-
-        if (!isLeaf)
-            nodeCode -= flatLeaves.lLength;
-
-       _Parameter * parentConditionals = iNodeCache +	(parentCode  * siteCount) * alphabetDimension;
-
-	if (taggedInternals.lData[parentCode] == 0)
-		// mark the parent for update and clear its conditionals if needed
-        {
-            taggedInternals.lData[parentCode]	  = 1; // only do this once
-            for (long k = 0, k3 = 0; k < siteCount; k++)
-                for (long k2 = 0; k2 < alphabetDimension; k2++)
-                    parentConditionals [k3++] = 1.0;
-        }
-		
-    }
- //   printf("setup the model, fixed tagged internals!\n");
- //   printf("flatleaves: %i\n", flatLeaves.lLength);
- //   printf("flatParents: %i\n", flatParents.lLength);
+    //printf("Allocated all of the arrays!\n");
+    //printf("setup the model, fixed tagged internals!\n");
+//    printf("flatleaves: %i\n", flatLeaves.lLength);
+//    printf("flatParents: %i\n", flatParents.lLength);
 //    printf("flatCleaves: %i\n", flatCLeaves.lLength);
 //    printf("flatNodes: %i\n", flatNodes.lLength);
 //    printf("updateNodes: %i\n", updateNodes.lLength);
@@ -213,22 +147,19 @@ int _OCLEvaluator::setupContext( )
 //            printf("Got another one %g\n",t);
 		//printf ("%i\n",i);
     }
-//    printf("Built node_cache\n");
+    //printf("Built node_cache\n");
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
-            ((fpoint*)nodRes_cache)[i] = lNodeResolutions->theData[i];
-//    printf("Built nodRes_cache\n");
+            ((fpoint*)nodRes_cache)[i] = (double)(lNodeResolutions->theData[i]);
+    //printf("Built nodRes_cache\n");
 	for (int i = 0; i < nodeFlagCount; i++)
-		((fpoint*)nodFlag_cache)[i] = lNodeFlags[i];
+		((long*)nodFlag_cache)[i] = lNodeFlags[i];
 
- //   printf("Created all of the arrays!\n");
+    //printf("Created all of the arrays!\n");
 
     // alright, by now taggedInternals have been taken care of, and model has
     // been filled with all of the transition matrices. 
 
-    // time stuff:
-    time_t dtimer;
-    time_t htimer;
     
     // set and log Global and Local work size dimensions
     
@@ -308,32 +239,23 @@ int _OCLEvaluator::setupContext( )
     }
 
 
-//    printf("Setup all of the OpenCL stuff!\n");
+    printf("Setup all of the OpenCL stuff!\n");
 
     // Allocate the OpenCL buffer memory objects for the input and output on the
     // device GMEM
     cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
                     sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, NULL,
                     &ciErr1);
-//    printf("clCreateBuffer...\n");
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("1Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
-//    printf("clCreateBuffer...\n");
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("2Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
     cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(clfp)*nodeResCount, NULL, &ciErr2);
     ciErr1 |= ciErr2;
+	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+					sizeof(cl_long)*nodeFlagCount, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
     {
@@ -349,11 +271,8 @@ int _OCLEvaluator::setupContext( )
         }
         Cleanup(EXIT_FAILURE);
     }
-	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-					sizeof(cl_long)*nodeFlagCount, NULL, &ciErr2);
-	ciErr1 |= ciErr2;
 
-//    printf("Made all of the buffers on the device!\n");
+    printf("Made all of the buffers on the device!\n");
     
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -398,12 +317,13 @@ int _OCLEvaluator::setupContext( )
 	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
 	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
 	// 		wont be a problem.
+	// TODO: remove the taggedInternals cache
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
-    "    __global const long* nodFlag_cache, __local fpoint* nodeScratch, __local fpoint* modelScratch, long leafState, long sites, \n" \
-    "    long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters)	          				                \n" \
+    "    __global const long* nodFlag_cache, __local fpoint* nodeScratch, __local fpoint* modelScratch,	long leafState,				\n" \
+    "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID)              \n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis    	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within the site.										    	\n" \
@@ -414,22 +334,30 @@ int _OCLEvaluator::setupContext( )
     "   int siteNumber = parentCharGlobal/roundCharacters;                                                                          \n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                      \n" \
     "   int childCharacterIndex = childNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                        \n" \
+	"	if (intTagState == 0)																						\n" \
+	"		node_cache[parentCharacterIndex] = 1.0;																					\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + siteNumber];															\n" \
     "   if (leafState == 0)                                                                                                         \n" \
 	"       nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			  	\n" \
     "   else if (siteState < 0)                                                                                                     \n" \
     "       nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                               \n" \
-    "   modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal]; \n" \
+    "   //modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal]; \n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	" 	if (leafState == 1 && siteState >= 0)																						\n" \
-	"		node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
+	"	{																															\n" \
+	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
+	"		node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharLocal*characters + siteState];\n" \
+	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
 	"   	fpoint sum = 0.;																								    	\n" \
     "   	long myChar;																									    	\n" \
     "   	for (myChar = 0; myChar < characters; myChar++)																	   		\n" \
     "   	{																												     	\n" \
-    "   	    sum += nodeScratch[myChar] * modelScratch[myChar];															    	\n" \
+    "   	  // sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
+    "   	  // sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
+    "   	   sum += node_cache[childNodeIndex*sites*characters + siteNumber*characters + myChar] * model[nodeID*characters*characters + parentCharLocal*characters + myChar];    	\n" \
     "   	}																													    \n" \
     "   	barrier(CLK_LOCAL_MEM_FENCE);																				    		\n" \
 	"   	node_cache[parentCharacterIndex] *= sum;					      												    	\n" \
@@ -441,7 +369,7 @@ int _OCLEvaluator::setupContext( )
     cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
                                           NULL, &ciErr1);
     
-//    printf("clCreateProgramWithSource...\n"); 
+    //printf("clCreateProgramWithSource...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -449,7 +377,7 @@ int _OCLEvaluator::setupContext( )
     }
     
     ciErr1 = clBuildProgram(cpProgram, 1, &cdDevice, NULL, NULL, NULL);
-//    printf("clBuildProgram...\n"); 
+    //printf("clBuildProgram...\n"); 
     
     // Shows the log
     char* build_log;
@@ -460,7 +388,7 @@ int _OCLEvaluator::setupContext( )
     // Second call to get the log
     clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     build_log[log_size] = '\0';
-    printf("%s", build_log);
+    //printf("%s", build_log);
     delete[] build_log;
     
     if (ciErr1 != CL_SUCCESS)
@@ -485,7 +413,7 @@ int _OCLEvaluator::setupContext( )
     
     // Create the kernel
     ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
-//    printf("clCreateKernel (FirstLoop)...\n"); 
+    printf("clCreateKernel (FirstLoop)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -498,6 +426,8 @@ int _OCLEvaluator::setupContext( )
 	long tempChildNodeIndex = 0;
 	long tempParentNodeIndex = 0;
 	long tempRoundCharCount = localMemorySize;
+	int tempTagIntState = 0;
+	long tempNodeID = 0;
 
     // Set the Argument values
 	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
@@ -512,9 +442,11 @@ int _OCLEvaluator::setupContext( )
 	ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&tempRoundCharCount); 
+	ciErr1 |= clSetKernelArg(ckKernel, 12, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 
 
-//    printf("clSetKernelArg 0 - 10...\n\n"); 
+    //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clSetKernelArg, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -528,17 +460,14 @@ int _OCLEvaluator::setupContext( )
                 sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
 
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
-                sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength,
-                model, 0, NULL, NULL);
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
                 sizeof(clfp)*nodeResCount, nodRes_cache, 0, NULL, NULL);
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
                 sizeof(cl_long)*nodeFlagCount, nodFlag_cache, 0, NULL, NULL);
-    
-//    printf("clEnqueueWriteBuffer (node_cache, etc.)...\n"); 
+	
+    printf("clEnqueueWriteBuffer (node_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -547,15 +476,35 @@ int _OCLEvaluator::setupContext( )
     
 }	
 
-int _OCLEvaluator::oclmain(void)
+double _OCLEvaluator::oclmain(void)
 {
-
-	
+	// Fix the model cache
     model = (void*)malloc
         (sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength);
-    // Launch kernel
-    for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
+/*
+	printf("Update Nodes:");
+	for (int i = 0; i < updateNodes.lLength; i++)
+	{
+		printf(" %i ", updateNodes.lData[i]);
+	}
+	printf("\n");
+
+	printf("Tagged Internals:");
+	for (int i = 0; i < taggedInternals.lLength; i++)
+	{
+		printf(" %i", taggedInternals.lData[i]);
+	}
+	printf("\n");
+*/
+    for (int nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
+        long    nodeCode = updateNodes.lData[nodeID],
+                parentCode = flatParents.lData[nodeCode];
+
+        bool isLeaf = nodeCode < flatLeaves.lLength;
+
+        if (!isLeaf) nodeCode -= flatLeaves.lLength;
+
 		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
                                                ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
 		
@@ -564,25 +513,46 @@ int _OCLEvaluator::oclmain(void)
             for (int a2 = 0; a2 < alphabetDimension; a2++)
             {
                 ((fpoint*)model)[nodeID*alphabetDimension*alphabetDimension+a1*alphabetDimension+a2] =
-                    tMatrix[a1*alphabetDimension+a2];
+                   (double)( tMatrix[a1*alphabetDimension+a2]);
             }
         }
+	}
+	
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
+                sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength,
+                model, 0, NULL, NULL);
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
 
+	//printf("Finished writing the model stuff\n");
+    // Launch kernel
+    for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
+    {
 
+		long 	nodeCode = updateNodes.lData[nodeIndex],
+				parentCode = flatParents.lData[nodeCode];
 
-        bool isLeaf = nodeIndex < flatLeaves.lLength;
-        int childIndex = nodeIndex;
+        bool isLeaf = nodeCode < flatLeaves.lLength;
+
+		long tempLeafState = 1;
         if (!isLeaf) 
 		{
-			childIndex -= flatLeaves.lLength;
+			nodeCode -= flatLeaves.lLength;
 			tempLeafState = 0;
 		}
-		long tempChildNodeIndex = updateNodes.lData[childIndex];
-		long tempParentNodeIndex = flatParents.lData[childIndex];
+
+		long nodeCodeTemp = nodeCode;
+		int tempIntTagState = taggedInternals.lData[parentCode];
 		ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(cl_long), (void*)&tempLeafState);
-		ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempChildNodeIndex);
-		ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempParentNodeIndex);
-			
+		ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&nodeCodeTemp);
+		ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&parentCode);
+		ciErr1 |= clSetKernelArg(ckKernel, 12, sizeof(cl_int), (void*)&tempIntTagState);
+		ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_long), (void*)&nodeIndex);
+		taggedInternals.lData[parentCode] = 1;
+
 		ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
 										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
         
@@ -652,23 +622,46 @@ int _OCLEvaluator::oclmain(void)
        iNodeCache[i] = ((_Parameter*)node_cache)[i];
     }
     
-    // Cleanup and leave
-    Cleanup (EXIT_SUCCESS);
+	// Verify the node cache TESTING
+/*
+	printf("NodeCache: ");
+    for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
+    {
+		if (i % (alphabetDimension*siteCount) == 0) printf("NEWNODE\n");
+		printf(" %g", iNodeCache[i]);
+    }
+	printf("\n");
+*/
+	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
+	double result = 0.0;
+//	printf("Rootconditionals: ");
+	for (long siteID = 0; siteID < siteCount; siteID++)
+	{
+		double accumulator = 0.;
+		//printf("%g ", *rootConditionals);
+		for (long p = 0; p < alphabetDimension; p++, rootConditionals++)
+		{
+			accumulator += *rootConditionals * theProbs[p];
+		}
+		result += log(accumulator) * theFrequencies[siteID];
+	}
     
-    return 0;
+	//printf("\n");
+    return result;
 }
 
 
-int _OCLEvaluator::launchmdsocl(_SimpleList& eupdateNodes,
-                 _SimpleList& eflatParents,
-                 _SimpleList& eflatNodes,
-                 _SimpleList& eflatCLeaves,
-                 _SimpleList& eflatLeaves,
-                 _SimpleList& eflatTree,
-                 _Parameter* eiNodeCache,
-                 long* elNodeFlags,
-                 _SimpleList etaggedInternals,
-                 _GrowingVector* elNodeResolutions)
+double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
+									_SimpleList& eflatParents,
+									_SimpleList& eflatNodes,
+									_SimpleList& eflatCLeaves,
+									_SimpleList& eflatLeaves,
+									_SimpleList& eflatTree,
+									_Parameter* etheProbs,
+									_SimpleList& etheFrequencies,
+									long* elNodeFlags,
+									_SimpleList& etaggedInternals,
+									_GrowingVector* elNodeResolutions)
 {
     // so I have all of this in OpenCL land now. All of the operations that remain should be setting up memory or in the Node loop above. 
     
@@ -692,21 +685,8 @@ int _OCLEvaluator::launchmdsocl(_SimpleList& eupdateNodes,
         // hyphy: flatCLeaves or flatTree->GetCompExp(0)
         // build now, move onto GPU all at once, move a chunk into memory in each kernel. 
     
-    // To move onto GPU:
-        // iNodeCache
-        // lNodeResolutions
-        // transitionMatrixArray
-    
-    // To give each kernel:
-        // an identity (node, site, parentChar)
-        // appropriate pointers to the iNodeCache
-        // whatever else is associated with the implementation
-        
-    
-    // save all of the rest of the above somewhere. 
-    
-    // run oclmain()
-//    printf("Made it to the pass-off Function!");
+    //printf("Made it to the pass-off Function!");
+
     
     updateNodes = eupdateNodes;
     flatParents = eflatParents;
@@ -714,11 +694,18 @@ int _OCLEvaluator::launchmdsocl(_SimpleList& eupdateNodes,
     flatCLeaves = eflatCLeaves;
     flatLeaves = eflatLeaves;
     flatTree = eflatTree;
-    lNodeFlags = elNodeFlags;
-    taggedInternals = etaggedInternals;
-    lNodeResolutions = elNodeResolutions;
+	theProbs = etheProbs;
+	theFrequencies = etheFrequencies;
+	taggedInternals = etaggedInternals;
+
      
-    
+	if (!contextSet)
+	{
+		lNodeFlags = elNodeFlags;
+		lNodeResolutions = elNodeResolutions;
+		setupContext();
+		contextSet = true;
+	}
 
     return oclmain();
 }
@@ -727,22 +714,24 @@ int _OCLEvaluator::launchmdsocl(_SimpleList& eupdateNodes,
 void _OCLEvaluator::Cleanup (int iExitCode)
 {
     // Cleanup allocated objects
-//    printf("Starting Cleanup...\n\n");
+    printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
     if(ckKernel)clReleaseKernel(ckKernel);  
     if(cpProgram)clReleaseProgram(cpProgram);
     if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
+    printf("Halfway...\n\n");
     if(cxGPUContext)clReleaseContext(cxGPUContext);
     if(cmNode_cache)clReleaseMemObject(cmNode_cache);
     if(cmModel_cache)clReleaseMemObject(cmModel_cache);
     if(cmNodRes_cache)clReleaseMemObject(cmNodRes_cache);
     if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
-    
+    printf("Done with ocl stuff...\n\n");
     // Free host memory
     free(node_cache); 
     free(model);
     free(nodRes_cache);
     free(nodFlag_cache);
+    printf("Done!\n\n");
     
     // exit (iExitCode);
 }
