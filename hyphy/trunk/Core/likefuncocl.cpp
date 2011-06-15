@@ -94,8 +94,6 @@ void _OCLEvaluator::init(	long esiteCount,
     iNodeCache = eiNodeCache;
 }
 
-// TODO: so I have started transitioning to a class system. I am having setupContext be called the first time you call 
-// 		launchmdsocl, as determined by the contextSet flag. 
 // So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
 // Therefore all of these functions need to be finished, the context needs to be setup separately from the execution, the data needs 
 // to be passed piecewise, and a pointer needs to be passed around in likefunc2.cpp. After that things should be going a bit faster, 
@@ -109,6 +107,7 @@ int _OCLEvaluator::setupContext(void)
     //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
     long nodeFlagCount = updateNodes.lLength*siteCount;
     long nodeResCount = lNodeResolutions->GetUsed();
+	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
 //    long nodeCount = flatLeaves.lLength + flatNodes.lLength + 1;
 //    long iNodeCount = flatNodes.lLength + 1;
 
@@ -123,10 +122,10 @@ int _OCLEvaluator::setupContext(void)
 
     // Make transitionMatrixArray, do other host stuff:
     node_cache = (void*)malloc
-        (sizeof(clfp)*alphabetDimension*siteCount*(flatNodes.lLength)); // +1 for root
+        (sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength)); // +1 for root
     nodRes_cache = (void*)malloc
-        (sizeof(clfp)*nodeResCount);
-	nodFlag_cache = (void*)malloc(sizeof(cl_long)*nodeFlagCount);
+        (sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount));
+	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -139,9 +138,14 @@ int _OCLEvaluator::setupContext(void)
 
     //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
 //	printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
-    for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
+	int alphaI = 0;
+    for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
     {
-        ((fpoint*)node_cache)[i] = iNodeCache[i];
+		if (i%(roundCharacters) < alphabetDimension)
+		{
+        	((fpoint*)node_cache)[i] = iNodeCache[alphaI];
+			alphaI++;
+		}
 //		double t = iNodeCache[i];        
 //		if (i%(siteCount*alphabetDimension) == 0)
 //            printf("Got another one %g\n",t);
@@ -161,15 +165,6 @@ int _OCLEvaluator::setupContext(void)
     // been filled with all of the transition matrices. 
 
     
-    // set and log Global and Local work size dimensions
-    
-    szLocalWorkSize = roundUpToNextPowerOfTwo(alphabetDimension);
-    szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) *
-        roundUpToNextPowerOfTwo(alphabetDimension);
-    localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
-//    printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
-//           szGlobalWorkSize, szLocalWorkSize, 
-//           (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
     
     //**************************************************
     dtimer = time(NULL); 
@@ -185,7 +180,7 @@ int _OCLEvaluator::setupContext(void)
     }
     
     //Get the devices
-    ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &cdDevice, NULL);
+    ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 4, &cdDevice, NULL);
  //   printf("clGetDeviceIDs...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -200,8 +195,30 @@ int _OCLEvaluator::setupContext(void)
     {
         printf("Getting max work group size failed!\n");
     }
-//    printf("Max work group size: %lu\n", (unsigned long)maxWorkGroupSize);
+    printf("Max work group size: %lu\n", (unsigned long)maxWorkGroupSize);
+
+    size_t maxLocalSize;
+    ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_LOCAL_MEM_SIZE, 
+                             sizeof(size_t), &maxLocalSize, NULL);
     
+    // set and log Global and Local work size dimensions
+    
+	//int memoryDivisor = maxLocalSize/(roundCharacters*sizeof(fpoint)*2);
+	int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize/2);
+	int workGroupDivisor = (roundCharacters*roundCharacters)/maxWorkGroupSize;
+	
+	int divisor = (memoryDivisor < workGroupDivisor ? workGroupDivisor : memoryDivisor);
+	printf("MemoryDivisor: %i\nworkGroupDivisor: %i\ndivisor: %i\n", memoryDivisor, workGroupDivisor, divisor);
+    szLocalWorkSize = roundCharacters*roundCharacters/divisor;
+    szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) *
+        roundCharacters * roundCharacters;
+    localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
+    printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
+           szGlobalWorkSize, szLocalWorkSize, 
+           (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
+
+
+
     cl_uint extcheck;
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, 
                              sizeof(cl_uint), &extcheck, NULL);
@@ -244,17 +261,17 @@ int _OCLEvaluator::setupContext(void)
     // Allocate the OpenCL buffer memory objects for the input and output on the
     // device GMEM
     cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
-                    sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, NULL,
+                    sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, NULL,
                     &ciErr1);
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-                    sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength, 
+                    sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
     cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-                    sizeof(clfp)*nodeResCount, NULL, &ciErr2);
+                    sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), NULL, &ciErr2);
     ciErr1 |= ciErr2;
 	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-					sizeof(cl_long)*nodeFlagCount, NULL, &ciErr2);
+					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -317,50 +334,46 @@ int _OCLEvaluator::setupContext(void)
 	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
 	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
 	// 		wont be a problem.
-	// TODO: remove the taggedInternals cache
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
     "    __global const long* nodFlag_cache, __local fpoint* nodeScratch, __local fpoint* modelScratch,	long leafState,				\n" \
-    "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID)              \n" \
+    "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID,\n" \
+	"	 int divisor)																												\n" \
 	"{																														    	\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis    	\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within the site.										    	\n" \
-	"	if ((parentCharGlobal/roundCharacters) >= sites) return;// filter out those parent characters that were added to round the  \n" \
-    "   // number of sites to a power of two                                                                                        \n" \
-	"	if (parentCharLocal >= characters) return; // that won't catch all the characters, as some were inserted into each site     \n" \
-    "   // to round the number of characters up to a power of two.                                                                  \n" \
-    "   int siteNumber = parentCharGlobal/roundCharacters;                                                                          \n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                      \n" \
-    "   int childCharacterIndex = childNodeIndex*sites*characters + siteNumber*characters + parentCharLocal;                        \n" \
-	"	if (intTagState == 0)																						\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each childcharacter in the whole node's analysis 	   	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	int charsWithinWG = roundCharacters*roundCharacters/divisor;																\n" \
+	"	long wgNumWInSite = (parentCharGlobal % (roundCharacters*roundCharacters))/charsWithinWG;									\n" \
+	"	long site = parentCharGlobal/(roundCharacters*roundCharacters);																\n" \
+	"	long parentCharacter = (wgNumWInSite * charsWithinWG + parentCharLocal)/(roundCharacters);									\n" \
+	"	long childCharacter = (wgNumWInSite * charsWithinWG + parentCharLocal)%(roundCharacters);									\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+    "  	int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter + childCharacter;   \n" \
+// TODO: So I've moved everything over to the power of two boundary (though the following parts of the kernel need to be verified. However with the new granularity I get murdered on reads and writes, and local memory reads and writes appear to be just about as slow. 
+	"	if (intTagState == 0 && childCharacter == 0) // reset the parent characters if this is a new LF eval						\n" \
 	"		node_cache[parentCharacterIndex] = 1.0;																					\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
-	"	long siteState = nodFlag_cache[childNodeIndex*sites + siteNumber];															\n" \
-    "   if (leafState == 0)                                                                                                         \n" \
-	"       nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			  	\n" \
-    "   else if (siteState < 0)                                                                                                     \n" \
-    "       nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                               \n" \
-    "   //modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal]; \n" \
+	"		//parentScratch[parentCharacter] = node_cache[parentCharacterIndex];	\n" \
+	"	//	go = false;																												\n" \
+	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	//long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
+    "   //if (leafState == 0)                                                                                                       \n" \
+	"   //    nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			\n" \
+    "   //else if (siteState < 0)                                                                                                   \n" \
+    "   //    nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                             \n" \
+    "   //modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal];\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	" 	if (leafState == 1 && siteState >= 0)																						\n" \
+	" 	//if (leafState == 1 && siteState >= 0 && childCharacter == 0)																\n" \
 	"	{																															\n" \
 	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
-	"		node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharLocal*characters + siteState];\n" \
+	"		//node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharacter*characters + siteState]; 		\n" \
 	"	}																															\n" \
-	"	else																														\n" \
+	"	//else																														\n" \
 	"	{																															\n" \
-	"   	fpoint sum = 0.;																								    	\n" \
-    "   	long myChar;																									    	\n" \
-    "   	for (myChar = 0; myChar < characters; myChar++)																	   		\n" \
-    "   	{																												     	\n" \
-    "   	  // sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
-    "   	  // sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
-    "   	   sum += node_cache[childNodeIndex*sites*characters + siteNumber*characters + myChar] * model[nodeID*characters*characters + parentCharLocal*characters + myChar];    	\n" \
-    "   	}																													    \n" \
-    "   	barrier(CLK_LOCAL_MEM_FENCE);																				    		\n" \
-	"   	node_cache[parentCharacterIndex] *= sum;					      												    	\n" \
+    "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
+    "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
+    "  	//	node_cache[parentCharacterIndex] *= node_cache[childCharacterIndex] * model[nodeID*characters*characters + parentChararacter*characters + childCharacter];    	\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -428,6 +441,7 @@ int _OCLEvaluator::setupContext(void)
 	long tempRoundCharCount = localMemorySize;
 	int tempTagIntState = 0;
 	long tempNodeID = 0;
+	int tempDivisor = divisor;
 
     // Set the Argument values
 	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
@@ -444,6 +458,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&tempRoundCharCount); 
 	ciErr1 |= clSetKernelArg(ckKernel, 12, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckKernel, 14, sizeof(cl_int), (void*)&tempDivisor); // reset this in the loop
 
 
     //printf("clSetKernelArg 0 - 12...\n\n"); 
@@ -457,15 +472,15 @@ int _OCLEvaluator::setupContext(void)
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
     ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-                sizeof(clfp)*alphabetDimension*siteCount*flatNodes.lLength, node_cache, 
+                sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
 
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
-                sizeof(clfp)*nodeResCount, nodRes_cache, 0, NULL, NULL);
+                sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, 0, NULL, NULL);
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
-                sizeof(cl_long)*nodeFlagCount, nodFlag_cache, 0, NULL, NULL);
+                sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, 0, NULL, NULL);
 	
     printf("clEnqueueWriteBuffer (node_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -479,8 +494,9 @@ int _OCLEvaluator::setupContext(void)
 double _OCLEvaluator::oclmain(void)
 {
 	// Fix the model cache
+	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
     model = (void*)malloc
-        (sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength);
+        (sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength);
 /*
 	printf("Update Nodes:");
 	for (int i = 0; i < updateNodes.lLength; i++)
@@ -512,14 +528,14 @@ double _OCLEvaluator::oclmain(void)
         {
             for (int a2 = 0; a2 < alphabetDimension; a2++)
             {
-                ((fpoint*)model)[nodeID*alphabetDimension*alphabetDimension+a1*alphabetDimension+a2] =
+                ((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
                    (double)( tMatrix[a1*alphabetDimension+a2]);
             }
         }
 	}
 	
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
-                sizeof(clfp)*alphabetDimension*alphabetDimension*updateNodes.lLength,
+                sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
@@ -587,7 +603,7 @@ double _OCLEvaluator::oclmain(void)
     
     // Synchronous/blocking read of results, and check accumulated errors
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
-            sizeof(clfp)*alphabetDimension*siteCount*(flatNodes.lLength), node_cache, 0,
+            sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
             NULL, NULL);
 //    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -616,11 +632,16 @@ double _OCLEvaluator::oclmain(void)
     clFinish(cqCommandQueue);
 //    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
     htimer = time(NULL);
-
-    for (int i = 0; i < (flatNodes.lLength)*siteCount*alphabetDimension; i++)
+	
+	int alphaI = 0;
+    for (int i = 0; i < (flatNodes.lLength)*siteCount*roundCharacters; i++)
     {
-       iNodeCache[i] = ((_Parameter*)node_cache)[i];
-    }
+		if (i%roundCharacters < alphabetDimension)
+		{
+       		iNodeCache[alphaI] = ((_Parameter*)node_cache)[i];
+			alphaI++;
+   		}
+	 }
     
 	// Verify the node cache TESTING
 /*
