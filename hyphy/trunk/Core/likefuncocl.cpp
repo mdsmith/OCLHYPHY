@@ -391,7 +391,9 @@ int _OCLEvaluator::setupContext(void)
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "  	int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 					\n" \
+	"	if (site > sites) return;																									\n" \
+	"	if (parentCharacter > characters) return;																					\n" \
+    "  	//int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 					\n" \
 	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
 	"		//node_cache[parentCharacterIndex] = 1.0;																				\n" \
 	"		parentScratch[parentCharLocal] = 1.0;																					\n" \
@@ -400,14 +402,16 @@ int _OCLEvaluator::setupContext(void)
 	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
-	"       childScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			\n" \
+	"		for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"       	childScratch[charsWithinWG*divI + parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*divI + parentCharLocal]; 			\n" \
     "   else if (siteState < 0)                                                                                                     \n" \
-    "       childScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharacter];                              \n" \
+	"		for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"			// TODO: this is wrong																								\n" \
+    "       	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
 	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
-	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																\n" \
+	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
     "   	modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-// TODO: beyond this point something is borked. Start commenting and running...
 	" 	if (leafState == 1 && siteState >= 0)																						\n" \
 	"	{																															\n" \
 	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
@@ -422,7 +426,7 @@ int _OCLEvaluator::setupContext(void)
     "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
     "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
     "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
-	"		parentScratch *= sum;																									\n" \
+	"		parentScratch[parentCharLocal] *= sum;																					\n" \
 	"	}																															\n" \
 	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
 	"}																													    		\n" \
@@ -498,7 +502,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
 	ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
 	ciErr1 |= clSetKernelArg(ckKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
-	ciErr1 |= clSetKernelArg(ckKernel, 4, sizeof(fpoint) * roundCharacters/divisor, NULL); // Child
+	ciErr1 |= clSetKernelArg(ckKernel, 4, sizeof(fpoint) * roundCharacters, NULL); // Child
 	ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(fpoint) * roundCharacters*roundCharacters/divisor, NULL); // Model
 	ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(fpoint) * roundCharacters/divisor, NULL); // Parent
 	ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempLeafState); // reset this in the loop
