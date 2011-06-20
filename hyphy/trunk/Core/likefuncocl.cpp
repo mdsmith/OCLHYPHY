@@ -417,6 +417,7 @@ int _OCLEvaluator::setupContext(void)
 	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
 	"		//node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharacter*characters + siteState]; 		\n" \
 	"		parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		//parentScratch[parentCharLocal] *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];							\n" \
 	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
@@ -426,8 +427,11 @@ int _OCLEvaluator::setupContext(void)
     "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
     "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
     "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+    "  		 	//sum += node_cache[childNodeIndex*roundCharacters*sites + site*roundCharacters + myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+    "  		 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar];	\n" \
 	"		parentScratch[parentCharLocal] *= sum;																					\n" \
 	"	}																															\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -584,7 +588,7 @@ double _OCLEvaluator::oclmain(void)
             for (int a2 = 0; a2 < alphabetDimension; a2++)
             {
                 ((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
-                   (double)( tMatrix[a1*alphabetDimension+a2]);
+                   (fpoint)(tMatrix[a1*alphabetDimension+a2]);
             }
         }
 	}
@@ -699,7 +703,7 @@ double _OCLEvaluator::oclmain(void)
 	 }
     
 	// Verify the node cache TESTING
-/*
+//
 	printf("NodeCache: ");
     for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
     {
@@ -707,14 +711,14 @@ double _OCLEvaluator::oclmain(void)
 		printf(" %g", iNodeCache[i]);
     }
 	printf("\n");
-*/
+//
 	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double result = 0.0;
-//	printf("Rootconditionals: ");
+	printf("Rootconditionals: ");
 	for (long siteID = 0; siteID < siteCount; siteID++)
 	{
 		double accumulator = 0.;
-		//printf("%g ", *rootConditionals);
+		printf("%g ", *rootConditionals);
 		for (long p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
@@ -722,7 +726,7 @@ double _OCLEvaluator::oclmain(void)
 		result += log(accumulator) * theFrequencies[siteID];
 	}
     
-	//printf("\n");
+	printf("\n");
     return result;
 }
 
