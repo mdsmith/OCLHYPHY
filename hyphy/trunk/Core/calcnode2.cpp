@@ -441,14 +441,14 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         }
     }
         
-	//printf("iNodeCache: ");
+	/*printf("iNodeCache: ");
 	for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
 	{
 		if (i%(alphabetDimension*siteCount) == 0) printf("NEWNODE \n");
 		printf(" %g", (double)(iNodeCache[i]));
 	}
 	printf("\n");
-//
+*/
     // now just process the root and return the likelihood
 
     _Parameter	* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
@@ -457,10 +457,10 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
 
 
-	printf("Rootconditionals: ");
+//	printf("Rootconditionals: ");
     for (long siteID = 0; siteID < siteCount; siteID++)
     {
-		printf(" %g", *rootConditionals);
+//		printf(" %g", *rootConditionals);
         _Parameter accumulator = 0.;
         for (long p = 0; p < alphabetDimension; p++,rootConditionals++)
         {
@@ -474,7 +474,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         result += log(accumulator) * theFilter->theFrequencies [siteID];
                 // correct for the fact that identical alignment columns may appear more than once
     }
-	printf("\n");
+//	printf("\n");
 
  
     return result;

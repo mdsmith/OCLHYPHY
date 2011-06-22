@@ -8191,7 +8191,6 @@ those matrices that need to be reexponentiated. Note that the first set can have
 //        yieldCPUTime();
             
 		// MDSOCL
-		// TODO: so here I will need to take a pointer from the caches I setup above, pass the new tree parameters, finish setup and execute. 
 		// pass new tree parameters and execute one LFcalc
 
 #ifdef MDSOCL

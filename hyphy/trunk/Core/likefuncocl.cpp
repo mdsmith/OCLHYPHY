@@ -391,8 +391,8 @@ int _OCLEvaluator::setupContext(void)
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-	"	if (site > sites) return;																									\n" \
-	"	if (parentCharacter > characters) return;																					\n" \
+	"	if (site >= sites) return;																									\n" \
+	"	if (parentCharacter >= characters) return;																					\n" \
     "  	//int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 					\n" \
 	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
 	"		//node_cache[parentCharacterIndex] = 1.0;																				\n" \
@@ -402,12 +402,14 @@ int _OCLEvaluator::setupContext(void)
 	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
-	"		for (int divI = 0; divI < divisor; divI++)																				\n" \
-	"       	childScratch[charsWithinWG*divI + parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*divI + parentCharLocal]; 			\n" \
-    "   else if (siteState < 0)                                                                                                     \n" \
-	"		for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"       	//childScratch[charsWithinWG*divI + parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*divI + parentCharLocal]; 			\n" \
+	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
+	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
+    "  // else if (siteState < 0)                                                                                                     \n" \
+	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
 	"			// TODO: this is wrong																								\n" \
-    "       	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
+    "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
 	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
     "   	modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
@@ -418,17 +420,22 @@ int _OCLEvaluator::setupContext(void)
 	"		//node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharacter*characters + siteState]; 		\n" \
 	"		parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
 	"		//parentScratch[parentCharLocal] *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];							\n" \
+	"		//node_cache[parentCharacterIndex] *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];\n" \
 	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
 	"		fpoint sum = 0.;																										\n" \
 	"		long myChar;																											\n" \
 	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
+	"		{																														\n" \
     "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
     "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
     "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
     "  		 	//sum += node_cache[childNodeIndex*roundCharacters*sites + site*roundCharacters + myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
     "  		 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar];	\n" \
+    "  		 	//sum += node_cache[childNodeIndex*roundCharacters*sites + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar];\n" \
+	"		}																														\n" \
+	"		//node_cache[parentCharacterIndex] *= sum;																					\n" \
 	"		parentScratch[parentCharLocal] *= sum;																					\n" \
 	"	}																															\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
@@ -703,7 +710,7 @@ double _OCLEvaluator::oclmain(void)
 	 }
     
 	// Verify the node cache TESTING
-//
+/*
 	printf("NodeCache: ");
     for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
     {
@@ -711,14 +718,14 @@ double _OCLEvaluator::oclmain(void)
 		printf(" %g", iNodeCache[i]);
     }
 	printf("\n");
-//
+*/
 	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double result = 0.0;
-	printf("Rootconditionals: ");
+//	printf("Rootconditionals: ");
 	for (long siteID = 0; siteID < siteCount; siteID++)
 	{
 		double accumulator = 0.;
-		printf("%g ", *rootConditionals);
+//		printf("%g ", *rootConditionals);
 		for (long p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
@@ -726,7 +733,7 @@ double _OCLEvaluator::oclmain(void)
 		result += log(accumulator) * theFrequencies[siteID];
 	}
     
-	printf("\n");
+//	printf("\n");
     return result;
 }
 
@@ -766,6 +773,7 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
         // build now, move onto GPU all at once, move a chunk into memory in each kernel. 
     
     //printf("Made it to the pass-off Function!");
+	
 
     
     updateNodes = eupdateNodes;
@@ -777,7 +785,6 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 	theProbs = etheProbs;
 	theFrequencies = etheFrequencies;
 	taggedInternals = etaggedInternals;
-
      
 	if (!contextSet)
 	{
