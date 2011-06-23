@@ -50,6 +50,12 @@ typedef cl_double clfp;
 // time stuff:
 time_t dtimer;
 time_t htimer;
+time_t mainTimer;
+time_t bufferTimer;
+time_t queueTimer;
+double mainSecs;
+double buffSecs;
+double queueSecs;
 
 cl_context cxGPUContext;        // OpenCL context
 cl_command_queue cqCommandQueue;// OpenCL command que
@@ -69,6 +75,7 @@ cl_mem cmNode_cache;
 cl_mem cmModel_cache;
 cl_mem cmNodRes_cache;
 cl_mem cmNodFlag_cache;
+cl_mem cmroot_cache;
 long siteCount, alphabetDimension; 
 long* lNodeFlags;
 _SimpleList    updateNodes, 
@@ -83,7 +90,7 @@ _Parameter 		*iNodeCache,
 _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 
-void *model, *node_cache, *nodRes_cache, *nodFlag_cache;
+void *model, *node_cache, *nodRes_cache, *nodFlag_cache, *root_cache;
 
 
 
@@ -96,6 +103,9 @@ void _OCLEvaluator::init(	long esiteCount,
     siteCount = esiteCount;
     alphabetDimension = ealphabetDimension;
     iNodeCache = eiNodeCache;
+	mainSecs = 0.0;
+	buffSecs = 0.0;
+	queueSecs = 0.0;
 }
 
 // So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
@@ -130,6 +140,7 @@ int _OCLEvaluator::setupContext(void)
     nodRes_cache = (void*)malloc
         (sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount));
 	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
+	root_cache = (void*)malloc(sizeof(clfp)*roundCharacters*siteCount);
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -162,6 +173,8 @@ int _OCLEvaluator::setupContext(void)
     //printf("Built nodRes_cache\n");
 	for (int i = 0; i < nodeFlagCount; i++)
 		((long*)nodFlag_cache)[i] = lNodeFlags[i];
+	for (int i = 0; i < siteCount*roundCharacters; i++)
+		((double*)root_cache)[i] = 0.0;
 
     //printf("Created all of the arrays!\n");
 
@@ -279,6 +292,9 @@ int _OCLEvaluator::setupContext(void)
 	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
 					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), NULL, &ciErr2);
 	ciErr1 |= ciErr2;
+	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
+					sizeof(clfp)*siteCount*roundCharacters, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
     {
@@ -349,7 +365,7 @@ int _OCLEvaluator::setupContext(void)
     "    __global const long* nodFlag_cache, __local fpoint* childScratch, __local fpoint* modelScratch, __local fpoint* parentScratch, \n" \
 	"	long leafState,				\n" \
     "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID,\n" \
-	"	 int divisor)																												\n" \
+	"	 int divisor, __global fpoint* root_cache)																					\n" \
 	"{																														    	\n" \
 	"   //int parentCharGlobal = get_global_id(0); // a unique global ID for each childcharacter in the whole node's analysis 	   	\n" \
     "   //int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
@@ -403,7 +419,7 @@ int _OCLEvaluator::setupContext(void)
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
 	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
-	"       	//childScratch[charsWithinWG*divI + parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*divI + parentCharLocal]; 			\n" \
+	"       	//childScratch[charsWithinWG*wgNumWInSite + divI] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*wgNumWInSite + divI]; 			\n" \
 	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
 	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
     "  // else if (siteState < 0)                                                                                                     \n" \
@@ -440,6 +456,7 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
+	"	root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
 	"}																													    		\n" \
 	"\n";
     
@@ -525,6 +542,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 14, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 15, sizeof(cl_int), (void*)&tempDivisor);
+	ciErr1 |= clSetKernelArg(ckKernel, 16, sizeof(cl_mem), (void*)&cmroot_cache);
 
 
     //printf("clSetKernelArg 0 - 12...\n\n"); 
@@ -559,6 +577,8 @@ int _OCLEvaluator::setupContext(void)
 
 double _OCLEvaluator::oclmain(void)
 {
+	// so far this wholebuffer rebuild takes almost no time at all. Perhaps not true re:queue
+	time(&bufferTimer);
 	// Fix the model cache
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
     model = (void*)malloc
@@ -600,6 +620,8 @@ double _OCLEvaluator::oclmain(void)
         }
 	}
 	
+	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
+	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
@@ -608,9 +630,11 @@ double _OCLEvaluator::oclmain(void)
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+	buffSecs += difftime(time(NULL), bufferTimer);
 
 	//printf("Finished writing the model stuff\n");
     // Launch kernel
+	time(&queueTimer);
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
 
@@ -637,6 +661,7 @@ double _OCLEvaluator::oclmain(void)
 
 		ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
 										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+		ciErr1 |= clFlush(cqCommandQueue);
         
         if (ciErr1 != CL_SUCCESS)
         {
@@ -668,8 +693,11 @@ double _OCLEvaluator::oclmain(void)
     }
     
     // Synchronous/blocking read of results, and check accumulated errors
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
-            sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
+    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
+    //        sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
+    //        NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
+            sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
             NULL, NULL);
 //    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -696,9 +724,13 @@ double _OCLEvaluator::oclmain(void)
     
     
     clFinish(cqCommandQueue);
+	queueSecs += difftime(time(NULL), queueTimer);
 //    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
     htimer = time(NULL);
 	
+// Everything after this point takes a total of about two seconds.
+/*
+	time(&mainTimer);
 	int alphaI = 0;
     for (int i = 0; i < (flatNodes.lLength)*siteCount*roundCharacters; i++)
     {
@@ -708,7 +740,18 @@ double _OCLEvaluator::oclmain(void)
 			alphaI++;
    		}
 	 }
-    
+ */   
+	double rootVals[alphabetDimension*siteCount];
+	time(&mainTimer);
+	int alphaI = 0;
+    for (int i = 0; i < siteCount*roundCharacters; i++)
+    {
+		if (i%roundCharacters < alphabetDimension)
+		{
+       		rootVals[alphaI] = ((double*)root_cache)[i];
+			alphaI++;
+   		}
+	 }
 	// Verify the node cache TESTING
 /*
 	printf("NodeCache: ");
@@ -719,7 +762,8 @@ double _OCLEvaluator::oclmain(void)
     }
 	printf("\n");
 */
-	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
+//	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
+	double* rootConditionals = rootVals;
 	double result = 0.0;
 //	printf("Rootconditionals: ");
 	for (long siteID = 0; siteID < siteCount; siteID++)
@@ -734,6 +778,7 @@ double _OCLEvaluator::oclmain(void)
 	}
     
 //	printf("\n");
+	mainSecs += difftime(time(NULL), mainTimer);
     return result;
 }
 
@@ -800,6 +845,9 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 
 void _OCLEvaluator::Cleanup (int iExitCode)
 {
+	printf("Time in main: %.4lf seconds\n", mainSecs);
+	printf("Time in updating transition buffer: %.4lf seconds\n", buffSecs);
+	printf("Time in queue: %.4lf seconds\n", queueSecs);
     // Cleanup allocated objects
     printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
