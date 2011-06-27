@@ -279,26 +279,26 @@ int _OCLEvaluator::setupContext(void)
 
     // Allocate the OpenCL buffer memory objects for the input and output on the
     // device GMEM
-    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
-                    sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, NULL,
+    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+                    sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
                     &ciErr1);
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
-    cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-                    sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), NULL, &ciErr2);
+    cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+                    sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, &ciErr2);
     ciErr1 |= ciErr2;
-	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), NULL, &ciErr2);
+	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, &ciErr2);
 	ciErr1 |= ciErr2;
-	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
-					sizeof(clfp)*siteCount*roundCharacters, NULL, &ciErr2);
+	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
+					sizeof(clfp)*siteCount*roundCharacters, root_cache, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
     {
-        printf("3Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        printf("Error in clCreateBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         switch(ciErr1)
         {
             case   CL_INVALID_CONTEXT: printf("CL_INVALID_CONTEXT\n"); break;
@@ -356,8 +356,9 @@ int _OCLEvaluator::setupContext(void)
 	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
 	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
 	// 		wont be a problem.
-	// TODO: padding nodeflag buffer not to a round sitenumber but rather just to a round total might screw things up. (accuracy or bank conflics...)
-	// TODO: just shrank the parent scratch, make sure it works properly
+	// TODO: removing the boundary checks doubles performance
+	// TODO: removing the double write to the local caches doubles performance
+	// TODO: removing both has no net effect on performance
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
@@ -367,39 +368,6 @@ int _OCLEvaluator::setupContext(void)
     "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID,\n" \
 	"	 int divisor, __global fpoint* root_cache)																					\n" \
 	"{																														    	\n" \
-	"   //int parentCharGlobal = get_global_id(0); // a unique global ID for each childcharacter in the whole node's analysis 	   	\n" \
-    "   //int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
-	"	//int charsWithinWG = roundCharacters*roundCharacters/divisor;																\n" \
-	"	//long wgNumWInSite = (parentCharGlobal % (roundCharacters*roundCharacters))/charsWithinWG;									\n" \
-	"	//long site = parentCharGlobal/(roundCharacters*roundCharacters);																\n" \
-	"	//long parentCharacter = (wgNumWInSite * charsWithinWG + parentCharLocal)/(roundCharacters);									\n" \
-	"	//long childCharacter = (wgNumWInSite * charsWithinWG + parentCharLocal)%(roundCharacters);									\n" \
-    "   //int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "  	//int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter + childCharacter;   \n" \
-	"	//if (intTagState == 0 && childCharacter == 0) // reset the parent characters if this is a new LF eval						\n" \
-	"		//node_cache[parentCharacterIndex] = 1.0;																					\n" \
-	"		//parentScratch[parentCharacter] = node_cache[parentCharacterIndex];	\n" \
-	"		//site = 1;																												\n" \
-	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
-	"	//long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-    "   //if (leafState == 0)                                                                                                       \n" \
-	"   //    nodeScratch[parentCharLocal] = node_cache[childCharacterIndex];				                            			\n" \
-    "   //else if (siteState < 0)                                                                                                   \n" \
-    "   //    nodeScratch[parentCharLocal] = nodRes_cache[characters*(-siteState-1) + parentCharLocal];                             \n" \
-    "   //modelScratch[parentCharLocal] = model[childNodeIndex*characters*characters + parentCharLocal*characters + parentCharLocal];\n" \
-	"	//barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	" 	//if (leafState == 1 && siteState >= 0 && childCharacter == 0)																\n" \
-	"	//{																															\n" \
-	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
-	"		//node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharacter*characters + siteState]; 		\n" \
-	"	//}																															\n" \
-	"	//else																														\n" \
-	"	//{																															\n" \
-    "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
-    "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
-    "  	//	node_cache[parentCharacterIndex] *= node_cache[childCharacterIndex] * model[nodeID*characters*characters + parentChararacter*characters + childCharacter];    	\n" \
-	"	//}																															\n" \
-	"	///////////////////////////////// Larger granularity: ///////////////////////////////////////////							\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
 	"	int charsWithinWG = roundCharacters/divisor;																				\n" \
@@ -409,34 +377,24 @@ int _OCLEvaluator::setupContext(void)
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
 	"	if (site >= sites) return;																									\n" \
 	"	if (parentCharacter >= characters) return;																					\n" \
-    "  	//int childCharacterIndex = childNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 					\n" \
 	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
-	"		//node_cache[parentCharacterIndex] = 1.0;																				\n" \
 	"		parentScratch[parentCharLocal] = 1.0;																					\n" \
 	"	else																														\n" \
 	"		parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
-	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
-	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
-	"       	//childScratch[charsWithinWG*wgNumWInSite + divI] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + charsWithinWG*wgNumWInSite + divI]; 			\n" \
 	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
 	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
     "  // else if (siteState < 0)                                                                                                     \n" \
 	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
 	"			// TODO: this is wrong																								\n" \
     "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
-	"	//barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
     "   	modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	" 	if (leafState == 1 && siteState >= 0)																						\n" \
 	"	{																															\n" \
-	"		//node_cache[parentCharacterIndex] *= modelScratch[siteState];															\n" \
-	"		//node_cache[parentCharacterIndex] *= model[nodeID*characters*characters + parentCharacter*characters + siteState]; 		\n" \
 	"		parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		//parentScratch[parentCharLocal] *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];							\n" \
-	"		//node_cache[parentCharacterIndex] *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];\n" \
 	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
@@ -444,14 +402,8 @@ int _OCLEvaluator::setupContext(void)
 	"		long myChar;																											\n" \
 	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
 	"		{																														\n" \
-    "  	  	// sum += nodeScratch[myChar] * modelScratch[myChar];														    		\n" \
-    "  	  	// sum += nodeScratch[myChar] * model[childNodeIndex*characters*characters + parentCharLocal*characters + myChar];    	\n" \
     "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
-    "  		 	//sum += node_cache[childNodeIndex*roundCharacters*sites + site*roundCharacters + myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
-    "  		 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar];	\n" \
-    "  		 	//sum += node_cache[childNodeIndex*roundCharacters*sites + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar];\n" \
 	"		}																														\n" \
-	"		//node_cache[parentCharacterIndex] *= sum;																					\n" \
 	"		parentScratch[parentCharLocal] *= sum;																					\n" \
 	"	}																															\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
@@ -555,6 +507,7 @@ int _OCLEvaluator::setupContext(void)
     // --------------------------------------------------------
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
+/*
     ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
@@ -572,7 +525,7 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-    
+ */   
 }	
 
 double _OCLEvaluator::oclmain(void)
