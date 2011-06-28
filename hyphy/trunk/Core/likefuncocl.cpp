@@ -354,7 +354,59 @@ int _OCLEvaluator::setupContext(void)
 	// TODO: removing the boundary checks doubles performance (only on AMD)
 	// TODO: removing the double write to the local caches doubles performance (on both platforms)
 	// TODO: removing both has no net effect on performance (only on AMD)
-	const char *program_source = "\n" \
+	const char *leaf_source = "\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
+    "    __global const long* nodFlag_cache, __local fpoint* childScratch, __local fpoint* modelScratch, __local fpoint* parentScratch, \n" \
+	"	long leafState,				\n" \
+    "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID,\n" \
+	"	 int divisor, __global fpoint* root_cache)																					\n" \
+	"{																														    	\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	int charsWithinWG = roundCharacters/divisor;																				\n" \
+	"	long wgNumWInSite = (parentCharGlobal & (roundCharacters-1))/charsWithinWG;	// equivalent to %								\n" \
+	"	long site = parentCharGlobal/roundCharacters;																				\n" \
+	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+	"	if (site >= sites) return;																									\n" \
+	"	if (parentCharacter >= characters) return;																					\n" \
+	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
+	"		parentScratch[parentCharLocal] = 1.0;																					\n" \
+	"	else																														\n" \
+	"		parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
+    "   if (leafState == 0)                                                                                                         \n" \
+	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
+	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
+    "  // else if (siteState < 0)                                                                                                     \n" \
+	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"			// TODO: this is wrong																								\n" \
+    "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
+	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
+    "   	modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	" 	if (leafState == 1 && siteState >= 0)																						\n" \
+	"	{																															\n" \
+	"		parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"	}																															\n" \
+	"	else																														\n" \
+	"	{																															\n" \
+	"		fpoint sum = 0.;																										\n" \
+	"		long myChar;																											\n" \
+	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
+	"		{																														\n" \
+    "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+	"		}																														\n" \
+	"		parentScratch[parentCharLocal] *= sum;																					\n" \
+	"	}																															\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
+	"	root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
+	"}																													    		\n" \
+	"\n";
+	const char *internal_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
