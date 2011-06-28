@@ -356,9 +356,9 @@ int _OCLEvaluator::setupContext(void)
 	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
 	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
 	// 		wont be a problem.
-	// TODO: removing the boundary checks doubles performance
-	// TODO: removing the double write to the local caches doubles performance
-	// TODO: removing both has no net effect on performance
+	// TODO: removing the boundary checks doubles performance (only on AMD)
+	// TODO: removing the double write to the local caches doubles performance (on both platforms)
+	// TODO: removing both has no net effect on performance (only on AMD)
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
