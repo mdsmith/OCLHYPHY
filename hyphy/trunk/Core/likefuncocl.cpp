@@ -7,11 +7,6 @@
 //
 // *********************************************************************
 
-// Hi!
-// Hi2!
-// Hi from hillcrest!
-// Hi2 from hillcrest!
-
 #ifdef MDSOCL
 
 #include <stdio.h>
