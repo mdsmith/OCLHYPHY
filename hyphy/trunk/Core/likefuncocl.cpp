@@ -357,11 +357,23 @@ int _OCLEvaluator::setupContext(void)
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
-	"__kernel void FirstLoop(__global fpoint* node_cache, __global const fpoint* model, __global const fpoint* nodRes_cache,    	\n" \
-    "    __global const long* nodFlag_cache, __local fpoint* childScratch, __local fpoint* modelScratch, __local fpoint* parentScratch, \n" \
-	"	long leafState,				\n" \
-    "    long sites, long characters, long childNodeIndex, long parentNodeIndex, long roundCharacters, int intTagState, long nodeID,\n" \
-	"	 int divisor, __global fpoint* root_cache)																					\n" \
+	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
+	"							__global const fpoint* model, 				// argument 1											\n" \
+	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
+    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
+	"							__local fpoint* childScratch, 				// argument 4											\n" \
+	"							__local fpoint* modelScratch, 				// argument 5											\n" \
+	"							__local fpoint* parentScratch,				// argument 6											\n" \
+	"							long leafState,								// argument 7											\n" \
+    "    						long sites, 								// argument 8											\n" \
+	"							long characters, 							// argument 9											\n" \
+	"							long childNodeIndex, 						// argument 10											\n" \
+	"							long parentNodeIndex, 						// argument 11											\n" \
+	"							long roundCharacters, 						// argument 12											\n" \
+	"							int intTagState, 							// argument 13											\n" \
+	"							long nodeID,								// argument 14											\n" \
+	"	 						int divisor, 								// argument 15											\n" \
+	"							__global fpoint* root_cache		)			// argument 16											\n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
