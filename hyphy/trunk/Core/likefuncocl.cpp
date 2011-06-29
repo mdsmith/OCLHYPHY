@@ -388,15 +388,15 @@ int _OCLEvaluator::setupContext(void)
 	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
     "   double privateModelScratch[64]; 		            \n" \
-    "   //double privateParentScratch = 1.0; 		            \n" \
+    "   double privateParentScratch = 1.0; 		            \n" \
 	"	if (site >= sites) return;																									\n" \
 	"	if (parentCharacter >= characters) return;																					\n" \
 	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
-	"		parentScratch[parentCharLocal] = 1.0;																					\n" \
-	"		//privateParentScratch = 1.0;																					\n" \
+	"		//parentScratch[parentCharLocal] = 1.0;																					\n" \
+	"		privateParentScratch = 1.0;																					\n" \
 	"	else																														\n" \
-	"		parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
-	"		//privateParentScratch = node_cache[parentCharacterIndex];														\n" \
+	"		//parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];														\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
 	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
@@ -415,7 +415,8 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		//parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
 	"		//privateParentScratch *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
+	"		//parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
+	"		privateParentScratch *= privateModelScratch[siteState];							\n" \
 	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
@@ -426,14 +427,14 @@ int _OCLEvaluator::setupContext(void)
     "  		 	//sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
     "  		 	sum += childScratch[myChar] * privateModelScratch[myChar]; 							   	\n" \
 	"		}																														\n" \
-	"		parentScratch[parentCharLocal] *= sum;																					\n" \
-	"		//privateParentScratch *= sum;																					\n" \
+	"		//parentScratch[parentCharLocal] *= sum;																					\n" \
+	"		privateParentScratch *= sum;																					\n" \
 	"	}																															\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
-	"	//node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
-	"	root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
-	"	//root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
+	"	//node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
+	"	//root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
+	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
 	"}																													    		\n" \
 	"\n";
     
