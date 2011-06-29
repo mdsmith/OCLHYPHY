@@ -212,6 +212,10 @@ int _OCLEvaluator::setupContext(void)
     size_t maxLocalSize;
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_LOCAL_MEM_SIZE, 
                              sizeof(size_t), &maxLocalSize, NULL);
+    size_t maxConstSize;
+    ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, 
+                             sizeof(size_t), &maxConstSize, NULL);
+	printf("LocalSize: %i, Const size: %i\n", maxLocalSize, maxConstSize);
     
     // set and log Global and Local work size dimensions
     
@@ -358,6 +362,7 @@ int _OCLEvaluator::setupContext(void)
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
+	"							//__global const fpoint* model, 				// argument 1											\n" \
 	"							__global const fpoint* model, 				// argument 1											\n" \
 	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
     "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
@@ -382,12 +387,16 @@ int _OCLEvaluator::setupContext(void)
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+    "   double privateModelScratch[64]; 		            \n" \
+    "   //double privateParentScratch = 1.0; 		            \n" \
 	"	if (site >= sites) return;																									\n" \
 	"	if (parentCharacter >= characters) return;																					\n" \
 	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
 	"		parentScratch[parentCharLocal] = 1.0;																					\n" \
+	"		//privateParentScratch = 1.0;																					\n" \
 	"	else																														\n" \
 	"		parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
+	"		//privateParentScratch = node_cache[parentCharacterIndex];														\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   if (leafState == 0)                                                                                                         \n" \
 	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
@@ -397,11 +406,16 @@ int _OCLEvaluator::setupContext(void)
 	"			// TODO: this is wrong																								\n" \
     "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-    "   	modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+	"	{																	 	\n" \
+    "   	//modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+	"	}																	 	\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	" 	if (leafState == 1 && siteState >= 0)																						\n" \
 	"	{																															\n" \
-	"		parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		//parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		//privateParentScratch *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
 	"	}																															\n" \
 	"	else																														\n" \
 	"	{																															\n" \
@@ -409,13 +423,17 @@ int _OCLEvaluator::setupContext(void)
 	"		long myChar;																											\n" \
 	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
 	"		{																														\n" \
-    "  		 	sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+    "  		 	//sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+    "  		 	sum += childScratch[myChar] * privateModelScratch[myChar]; 							   	\n" \
 	"		}																														\n" \
 	"		parentScratch[parentCharLocal] *= sum;																					\n" \
+	"		//privateParentScratch *= sum;																					\n" \
 	"	}																															\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
+	"	//node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
 	"	root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
+	"	//root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
 	"}																													    		\n" \
 	"\n";
     
@@ -490,6 +508,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
 	ciErr1 |= clSetKernelArg(ckKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
 	ciErr1 |= clSetKernelArg(ckKernel, 4, sizeof(fpoint) * roundCharacters, NULL); // Child
+	//ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(fpoint) * roundCharacters*roundCharacters/divisor, NULL); // Model
 	ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(fpoint) * roundCharacters*roundCharacters/divisor, NULL); // Model
 	ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(fpoint) * roundCharacters/divisor, NULL); // Parent
 	ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempLeafState); // reset this in the loop
