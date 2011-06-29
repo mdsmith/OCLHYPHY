@@ -437,6 +437,122 @@ int _OCLEvaluator::setupContext(void)
 	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
 	"}																													    		\n" \
 	"\n";
+	const char *leaf_source = "\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
+	"							//__global const fpoint* model, 				// argument 1											\n" \
+	"							__global const fpoint* model, 				// argument 1											\n" \
+	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
+    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
+	"							__local fpoint* childScratch, 				// argument 4											\n" \
+	"							__local fpoint* modelScratch, 				// argument 5											\n" \
+	"							__local fpoint* parentScratch,				// argument 6											\n" \
+    "    						long sites, 								// argument 8											\n" \
+	"							long characters, 							// argument 9											\n" \
+	"							long childNodeIndex, 						// argument 10											\n" \
+	"							long parentNodeIndex, 						// argument 11											\n" \
+	"							long roundCharacters, 						// argument 12											\n" \
+	"							long nodeID,								// argument 14											\n" \
+	"{																														    	\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	long site = parentCharGlobal/roundCharacters;																				\n" \
+	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);														\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+    "   double privateModelScratch[64]; 		            \n" \
+    "   double privateParentScratch = 1.0; 		            \n" \
+	"	if (site >= sites) return;																									\n" \
+	"	if (parentCharacter >= characters) return;																					\n" \
+	"	privateParentScratch = node_cache[parentCharacterIndex];														\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
+	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
+	"	{																	 	\n" \
+    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+	"	}																	 	\n" \
+	"	privateParentScratch *= privateModelScratch[siteState];							\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
+	"}																													    		\n" \
+	"\n";
+	const char *internal_source = "\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
+	"							//__global const fpoint* model, 				// argument 1											\n" \
+	"							__global const fpoint* model, 				// argument 1											\n" \
+	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
+    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
+	"							__local fpoint* childScratch, 				// argument 4											\n" \
+	"							__local fpoint* modelScratch, 				// argument 5											\n" \
+	"							__local fpoint* parentScratch,				// argument 6											\n" \
+	"							long leafState,								// argument 7											\n" \
+    "    						long sites, 								// argument 8											\n" \
+	"							long characters, 							// argument 9											\n" \
+	"							long childNodeIndex, 						// argument 10											\n" \
+	"							long parentNodeIndex, 						// argument 11											\n" \
+	"							long roundCharacters, 						// argument 12											\n" \
+	"							int intTagState, 							// argument 13											\n" \
+	"							long nodeID,								// argument 14											\n" \
+	"	 						int divisor, 								// argument 15											\n" \
+	"							__global fpoint* root_cache		)			// argument 16											\n" \
+	"{																														    	\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	int charsWithinWG = roundCharacters/divisor;																				\n" \
+	"	long wgNumWInSite = (parentCharGlobal & (roundCharacters-1))/charsWithinWG;	// equivalent to %								\n" \
+	"	long site = parentCharGlobal/roundCharacters;																				\n" \
+	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+    "   double privateModelScratch[64]; 		            \n" \
+    "   double privateParentScratch = 1.0; 		            \n" \
+	"	if (site >= sites) return;																									\n" \
+	"	if (parentCharacter >= characters) return;																					\n" \
+	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
+	"		//parentScratch[parentCharLocal] = 1.0;																					\n" \
+	"		privateParentScratch = 1.0;																					\n" \
+	"	else																														\n" \
+	"		//parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];														\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
+    "   if (leafState == 0)                                                                                                         \n" \
+	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
+	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
+    "  // else if (siteState < 0)                                                                                                     \n" \
+	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
+	"			// TODO: this is wrong																								\n" \
+    "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
+	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
+	"	{																	 	\n" \
+    "   	//modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
+	"	}																	 	\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	" 	if (leafState == 1 && siteState >= 0)																						\n" \
+	"	{																															\n" \
+	"		//parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		//privateParentScratch *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
+	"		//parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
+	"		privateParentScratch *= privateModelScratch[siteState];							\n" \
+	"	}																															\n" \
+	"	else																														\n" \
+	"	{																															\n" \
+	"		fpoint sum = 0.;																										\n" \
+	"		long myChar;																											\n" \
+	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
+	"		{																														\n" \
+    "  		 	//sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
+    "  		 	sum += childScratch[myChar] * privateModelScratch[myChar]; 							   	\n" \
+	"		}																														\n" \
+	"		//parentScratch[parentCharLocal] *= sum;																					\n" \
+	"		privateParentScratch *= sum;																					\n" \
+	"	}																															\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	"	//node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
+	"	//root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
+	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
+	"}																													    		\n" \
+	"\n";
     
     
     cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
