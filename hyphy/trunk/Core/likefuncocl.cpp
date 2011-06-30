@@ -224,8 +224,8 @@ int _OCLEvaluator::setupContext(void)
     // set and log Global and Local work size dimensions
     
 	//int memoryDivisor = maxLocalSize/(roundCharacters*sizeof(fpoint)*2);
-	int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize/4);
-	//int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize);
+	//int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize/4);
+	int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize);
 	int workGroupDivisor = (roundCharacters*roundCharacters)/maxWorkGroupSize;
 	
 	//int divisor = (memoryDivisor < workGroupDivisor ? workGroupDivisor : memoryDivisor);
@@ -448,7 +448,7 @@ int _OCLEvaluator::setupContext(void)
 	"__kernel void LeafKernel(	__global fpoint* node_cache, 				// argument 0											\n" \
 	"							__global const fpoint* model, 				// argument 1											\n" \
 	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
-    "    						__constant long* nodFlag_cache, 		// argument 3											\n" \
+    "    						__constant long* nodFlag_cache, 			// argument 3											\n" \
     "    						long sites, 								// argument 4											\n" \
 	"							long characters, 							// argument 5											\n" \
 	"							long childNodeIndex, 						// argument 6											\n" \
@@ -474,7 +474,6 @@ int _OCLEvaluator::setupContext(void)
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
-	"								//__constant fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
 	"								__local fpoint* model_cache, 		  		// argument 3									 	\n" \
@@ -489,6 +488,8 @@ int _OCLEvaluator::setupContext(void)
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	__local double childScratch[64];																							\n" \
+	"	__private double modelScratch[64];																							\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
@@ -499,16 +500,20 @@ int _OCLEvaluator::setupContext(void)
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
 	"	{																														 	\n" \
     "   	//privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-    "   	model_cache[parentCharLocal*roundCharacters + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+    "   	modelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+    "   	//model_cache[parentCharLocal*roundCharacters + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
 	"	}																														 	\n" \
+	"	childScratch[parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + parentCharGlobal];						\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	fpoint sum = 0.;																											\n" \
 	"	long myChar;																												\n" \
 	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
 	"	{																															\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
-    "  	 	sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
+    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
+    "  	 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
+    "  	 	sum += childScratch[myChar] * modelScratch[myChar]; 	\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
@@ -666,7 +671,8 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(fpoint)*roundCharacters*roundCharacters/divisor, NULL);
+	//ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(fpoint)*roundCharacters*roundCharacters/divisor, NULL);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(cl_short)*roundCharacters*roundCharacters/divisor, NULL);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
