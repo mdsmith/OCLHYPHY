@@ -56,8 +56,12 @@ cl_context cxGPUContext;        // OpenCL context
 cl_command_queue cqCommandQueue;// OpenCL command que
 cl_platform_id cpPlatform;      // OpenCL platform
 cl_device_id cdDevice;          // OpenCL device
-cl_program cpProgram;           // OpenCL program
-cl_kernel ckKernel;             // OpenCL kernel
+//cl_program cpProgram;           // OpenCL program
+//cl_kernel ckKernel;             // OpenCL kernel
+cl_program cpLeafProgram;
+cl_program cpInternalProgram;
+cl_kernel ckLeafKernel;
+cl_kernel ckInternalKernel;
 size_t szGlobalWorkSize;        // 1D var for Total # of work items
 size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
@@ -221,6 +225,7 @@ int _OCLEvaluator::setupContext(void)
     
 	//int memoryDivisor = maxLocalSize/(roundCharacters*sizeof(fpoint)*2);
 	int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize/4);
+	//int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize);
 	int workGroupDivisor = (roundCharacters*roundCharacters)/maxWorkGroupSize;
 	
 	//int divisor = (memoryDivisor < workGroupDivisor ? workGroupDivisor : memoryDivisor);
@@ -228,8 +233,8 @@ int _OCLEvaluator::setupContext(void)
 	printf("MemoryDivisor: %i\nworkGroupDivisor: %i\ndivisor: %i\n", memoryDivisor, workGroupDivisor, divisor);
     //szLocalWorkSize = roundCharacters*roundCharacters/divisor;
     szLocalWorkSize = roundCharacters/divisor;
-    szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) *
-        roundCharacters;
+    //szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) * roundCharacters;
+    szGlobalWorkSize = siteCount * roundCharacters;
     localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
     printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
            szGlobalWorkSize, szLocalWorkSize, 
@@ -440,123 +445,85 @@ int _OCLEvaluator::setupContext(void)
 	const char *leaf_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
-	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
-	"							//__global const fpoint* model, 				// argument 1											\n" \
+	"__kernel void LeafKernel(	__global fpoint* node_cache, 				// argument 0											\n" \
 	"							__global const fpoint* model, 				// argument 1											\n" \
 	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
-    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
-	"							__local fpoint* childScratch, 				// argument 4											\n" \
-	"							__local fpoint* modelScratch, 				// argument 5											\n" \
-	"							__local fpoint* parentScratch,				// argument 6											\n" \
-    "    						long sites, 								// argument 8											\n" \
-	"							long characters, 							// argument 9											\n" \
-	"							long childNodeIndex, 						// argument 10											\n" \
-	"							long parentNodeIndex, 						// argument 11											\n" \
-	"							long roundCharacters, 						// argument 12											\n" \
-	"							long nodeID,								// argument 14											\n" \
+    "    						__constant long* nodFlag_cache, 		// argument 3											\n" \
+    "    						long sites, 								// argument 4											\n" \
+	"							long characters, 							// argument 5											\n" \
+	"							long childNodeIndex, 						// argument 6											\n" \
+	"							long parentNodeIndex, 						// argument 7											\n" \
+	"							long roundCharacters, 						// argument 8											\n" \
+	"							int intTagState, 							// argument 9											\n" \
+	"							long nodeID			)						// argument 10											\n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
-	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);														\n" \
+	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "   double privateModelScratch[64]; 		            \n" \
-    "   double privateParentScratch = 1.0; 		            \n" \
-	"	if (site >= sites) return;																									\n" \
-	"	if (parentCharacter >= characters) return;																					\n" \
-	"	privateParentScratch = node_cache[parentCharacterIndex];														\n" \
+    "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+	"	if (intTagState == 1) 																										\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-	"	{																	 	\n" \
-    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
-	"	}																	 	\n" \
-	"	privateParentScratch *= privateModelScratch[siteState];							\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];		\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *internal_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
-	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
-	"							//__global const fpoint* model, 				// argument 1											\n" \
-	"							__global const fpoint* model, 				// argument 1											\n" \
-	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
-    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
-	"							__local fpoint* childScratch, 				// argument 4											\n" \
-	"							__local fpoint* modelScratch, 				// argument 5											\n" \
-	"							__local fpoint* parentScratch,				// argument 6											\n" \
-	"							long leafState,								// argument 7											\n" \
-    "    						long sites, 								// argument 8											\n" \
-	"							long characters, 							// argument 9											\n" \
-	"							long childNodeIndex, 						// argument 10											\n" \
-	"							long parentNodeIndex, 						// argument 11											\n" \
-	"							long roundCharacters, 						// argument 12											\n" \
-	"							int intTagState, 							// argument 13											\n" \
-	"							long nodeID,								// argument 14											\n" \
-	"	 						int divisor, 								// argument 15											\n" \
-	"							__global fpoint* root_cache		)			// argument 16											\n" \
+	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"								__global const fpoint* model, 				// argument 1										\n" \
+	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
+	"								__local fpoint* model_cache, 		  		// argument 3									 	\n" \
+    "    							long sites, 								// argument 4										\n" \
+	"								long characters, 							// argument 5										\n" \
+	"								long childNodeIndex, 						// argument 6										\n" \
+	"								long parentNodeIndex, 						// argument 7										\n" \
+	"								long roundCharacters, 						// argument 8										\n" \
+	"								int intTagState, 							// argument 9										\n" \
+	"								long nodeID,								// argument 10										\n" \
+	"								__global fpoint* root_cache		)			// argument 11										\n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
-	"	int charsWithinWG = roundCharacters/divisor;																				\n" \
-	"	long wgNumWInSite = (parentCharGlobal & (roundCharacters-1))/charsWithinWG;	// equivalent to %								\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
-	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
+	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "   double privateModelScratch[64]; 		            \n" \
-    "   double privateParentScratch = 1.0; 		            \n" \
-	"	if (site >= sites) return;																									\n" \
-	"	if (parentCharacter >= characters) return;																					\n" \
-	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
-	"		//parentScratch[parentCharLocal] = 1.0;																					\n" \
-	"		privateParentScratch = 1.0;																					\n" \
-	"	else																														\n" \
-	"		//parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
-	"		privateParentScratch = node_cache[parentCharacterIndex];														\n" \
-	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-    "   if (leafState == 0)                                                                                                         \n" \
-	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
-	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
-    "  // else if (siteState < 0)                                                                                                     \n" \
-	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
-	"			// TODO: this is wrong																								\n" \
-    "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
+    "   fpoint privateModelScratch[64]; 		             																		\n" \
+    "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+	"	if (intTagState == 1) 																										\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-	"	{																	 	\n" \
-    "   	//modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
-    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
-	"	}																	 	\n" \
+	"	{																														 	\n" \
+    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+	"	}																														 	\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	" 	if (leafState == 1 && siteState >= 0)																						\n" \
+	"	fpoint sum = 0.;																											\n" \
+	"	long myChar;																												\n" \
+	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
 	"	{																															\n" \
-	"		//parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		//privateParentScratch *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		//parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
-	"		privateParentScratch *= privateModelScratch[siteState];							\n" \
+    "  	 	sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
 	"	}																															\n" \
-	"	else																														\n" \
-	"	{																															\n" \
-	"		fpoint sum = 0.;																										\n" \
-	"		long myChar;																											\n" \
-	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
-	"		{																														\n" \
-    "  		 	//sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
-    "  		 	sum += childScratch[myChar] * privateModelScratch[myChar]; 							   	\n" \
-	"		}																														\n" \
-	"		//parentScratch[parentCharLocal] *= sum;																					\n" \
-	"		privateParentScratch *= sum;																					\n" \
-	"	}																															\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	"	//node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
-	"	//root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
-	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
+	"	privateParentScratch *= sum;																								\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;													\n" \
 	"}																													    		\n" \
 	"\n";
     
     
-    cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
-                                          NULL, &ciErr1);
+    //cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
+    //                                      NULL, &ciErr1);
+	cpLeafProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&leaf_source,
+											NULL, &ciErr1);
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+	cpInternalProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&internal_source,
+											NULL, &ciErr1);
     
     //printf("clCreateProgramWithSource...\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -565,17 +532,49 @@ int _OCLEvaluator::setupContext(void)
         Cleanup(EXIT_FAILURE);
     }
     
-    ciErr1 = clBuildProgram(cpProgram, 1, &cdDevice, NULL, NULL, NULL);
+    //ciErr1 = clBuildProgram(cpProgram, 1, &cdDevice, NULL, NULL, NULL);
+    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
+            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
+            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
+            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
+            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
+            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
+            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
+        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+
+
+
+    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
     //printf("clBuildProgram...\n"); 
     
     // Shows the log
     char* build_log;
     size_t log_size;
     // First call to know the proper size
-    clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+    //clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+    //build_log = new char[log_size+1];   
+    clGetProgramBuildInfo(cpLeafProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+    build_log = new char[log_size+1];   
+    clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
     build_log = new char[log_size+1];   
     // Second call to get the log
-    clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+    //clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+    //build_log[log_size] = '\0';
+    clGetProgramBuildInfo(cpLeafProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+    build_log[log_size] = '\0';
+    clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     build_log[log_size] = '\0';
     //printf("%s", build_log);
     delete[] build_log;
@@ -601,8 +600,16 @@ int _OCLEvaluator::setupContext(void)
     }
     
     // Create the kernel
-    ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
-    printf("clCreateKernel (FirstLoop)...\n"); 
+    //ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
+    ckLeafKernel = clCreateKernel(cpLeafProgram, "LeafKernel", &ciErr1);
+    printf("clCreateKernel (LeafKernel)...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    ckInternalKernel = clCreateKernel(cpInternalProgram, "InternalKernel", &ciErr1);
+    printf("clCreateKernel (InternalKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -618,7 +625,7 @@ int _OCLEvaluator::setupContext(void)
 	int tempTagIntState = 0;
 	long tempNodeID = 0;
 	int tempDivisor = divisor;
-
+/*
     // Set the Argument values
 	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
@@ -638,8 +645,32 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 14, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckKernel, 15, sizeof(cl_int), (void*)&tempDivisor);
 	ciErr1 |= clSetKernelArg(ckKernel, 16, sizeof(cl_mem), (void*)&cmroot_cache);
+*/
 
+	ciErr1 = clSetKernelArg(ckLeafKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(fpoint)*roundCharacters*roundCharacters/divisor, NULL);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 11, sizeof(cl_mem), (void*)&cmroot_cache);
     //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -739,6 +770,40 @@ double _OCLEvaluator::oclmain(void)
 
         bool isLeaf = nodeCode < flatLeaves.lLength;
 
+		if (isLeaf)
+		{
+			long tempLeafState = 1;
+			long nodeCodeTemp = nodeCode;
+			int tempIntTagState = taggedInternals.lData[parentCode];
+
+			ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
+			ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&parentCode);
+			ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
+			ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
+			taggedInternals.lData[parentCode] = 1;
+
+			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 1, NULL, 
+											&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+			ciErr1 |= clFlush(cqCommandQueue);
+		}
+		else
+		{	
+			long tempLeafState = 0;
+			nodeCode -= flatLeaves.lLength;
+			long nodeCodeTemp = nodeCode;
+			int tempIntTagState = taggedInternals.lData[parentCode];
+
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&parentCode);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
+			taggedInternals.lData[parentCode] = 1;
+
+			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 1, NULL, 
+											&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+			ciErr1 |= clFlush(cqCommandQueue);
+		}
+/*
 		long tempLeafState = 1;
         if (!isLeaf) 
 		{
@@ -759,6 +824,7 @@ double _OCLEvaluator::oclmain(void)
 										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
 		ciErr1 |= clFlush(cqCommandQueue);
         
+*/		
         if (ciErr1 != CL_SUCCESS)
         {
             printf("%i\n", ciErr1); //prints "1"
@@ -785,7 +851,6 @@ double _OCLEvaluator::oclmain(void)
 			printf("Error in clEnqueueNDRangeKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
 			Cleanup(EXIT_FAILURE);
         }
-		
     }
     
     // Synchronous/blocking read of results, and check accumulated errors
@@ -858,6 +923,7 @@ double _OCLEvaluator::oclmain(void)
     }
 	printf("\n");
 */
+
 //	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double* rootConditionals = rootVals;
 	double result = 0.0;
@@ -947,8 +1013,12 @@ void _OCLEvaluator::Cleanup (int iExitCode)
     // Cleanup allocated objects
     printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
-    if(ckKernel)clReleaseKernel(ckKernel);  
-    if(cpProgram)clReleaseProgram(cpProgram);
+    //if(ckKernel)clReleaseKernel(ckKernel);  
+    if(ckLeafKernel)clReleaseKernel(ckLeafKernel);  
+    if(ckInternalKernel)clReleaseKernel(ckInternalKernel);  
+    //if(cpProgram)clReleaseProgram(cpProgram);
+    if(cpLeafProgram)clReleaseProgram(cpLeafProgram);
+    if(cpInternalProgram)clReleaseProgram(cpInternalProgram);
     if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
     printf("Halfway...\n\n");
     if(cxGPUContext)clReleaseContext(cxGPUContext);
@@ -964,7 +1034,8 @@ void _OCLEvaluator::Cleanup (int iExitCode)
     free(nodFlag_cache);
     printf("Done!\n\n");
     
-    // exit (iExitCode);
+	if (iExitCode = EXIT_FAILURE)
+    	exit (iExitCode);
 }
 
 unsigned int _OCLEvaluator::roundUpToNextPowerOfTwo(unsigned int x)
