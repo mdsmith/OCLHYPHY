@@ -474,6 +474,7 @@ int _OCLEvaluator::setupContext(void)
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"								//__constant fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
 	"								__local fpoint* model_cache, 		  		// argument 3									 	\n" \
@@ -491,20 +492,23 @@ int _OCLEvaluator::setupContext(void)
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "   fpoint privateModelScratch[64]; 		             																		\n" \
+    "   //fpoint privateModelScratch[64]; 		             																		\n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
 	"	{																														 	\n" \
-    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+    "   	//privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+    "   	model_cache[parentCharLocal*roundCharacters + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
 	"	}																														 	\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	fpoint sum = 0.;																											\n" \
 	"	long myChar;																												\n" \
 	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
 	"	{																															\n" \
-    "  	 	sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
+    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
+    "  	 	sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
+    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
