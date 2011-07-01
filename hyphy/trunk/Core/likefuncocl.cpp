@@ -757,7 +757,9 @@ double _OCLEvaluator::oclmain(void)
         {
             for (a2 = 0; a2 < alphabetDimension; a2++)
             {
-                ((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
+                //((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
+                //   (fpoint)(tMatrix[a1*alphabetDimension+a2]);
+                ((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a2*roundCharacters+a1] =
                    (fpoint)(tMatrix[a1*alphabetDimension+a2]);
             }
         }
