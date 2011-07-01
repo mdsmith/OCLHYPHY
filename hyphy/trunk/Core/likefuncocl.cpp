@@ -43,11 +43,12 @@ typedef cl_double clfp;
 #endif
 
 // time stuff:
+// TODO: begin using clock_gettime()
 time_t dtimer;
 time_t htimer;
-time_t mainTimer;
-time_t bufferTimer;
-time_t queueTimer;
+long mainTimer;
+long bufferTimer;
+long queueTimer;
 double mainSecs;
 double buffSecs;
 double queueSecs;
@@ -229,7 +230,8 @@ int _OCLEvaluator::setupContext(void)
 	int workGroupDivisor = (roundCharacters*roundCharacters)/maxWorkGroupSize;
 	
 	//int divisor = (memoryDivisor < workGroupDivisor ? workGroupDivisor : memoryDivisor);
-	int divisor = memoryDivisor;
+	//int divisor = memoryDivisor;
+	int divisor = 1;
 	printf("MemoryDivisor: %i\nworkGroupDivisor: %i\ndivisor: %i\n", memoryDivisor, workGroupDivisor, divisor);
     //szLocalWorkSize = roundCharacters*roundCharacters/divisor;
     szLocalWorkSize = roundCharacters/divisor;
@@ -489,7 +491,7 @@ int _OCLEvaluator::setupContext(void)
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
 	"	__local double childScratch[64];																							\n" \
-	"	__private double modelScratch[64];																							\n" \
+	"	//__private double modelScratch[64];																							\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
@@ -497,12 +499,12 @@ int _OCLEvaluator::setupContext(void)
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-	"	{																														 	\n" \
+	"	//for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
+	"	//{																														 	\n" \
     "   	//privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-    "   	modelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
+    "   	//modelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
     "   	//model_cache[parentCharLocal*roundCharacters + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-	"	}																														 	\n" \
+	"	//}																														 	\n" \
 	"	childScratch[parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + parentCharGlobal];						\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	fpoint sum = 0.;																											\n" \
@@ -512,8 +514,8 @@ int _OCLEvaluator::setupContext(void)
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
-    "  	 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
-    "  	 	sum += childScratch[myChar] * modelScratch[myChar]; 	\n" \
+    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
+    "  	 	//sum += childScratch[myChar] * modelScratch[myChar]; 	\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
@@ -716,6 +718,7 @@ double _OCLEvaluator::oclmain(void)
 {
 	// so far this wholebuffer rebuild takes almost no time at all. Perhaps not true re:queue
 	time(&bufferTimer);
+	time(&mainTimer);
 	// Fix the model cache
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
     model = (void*)malloc
@@ -757,6 +760,7 @@ double _OCLEvaluator::oclmain(void)
         }
 	}
 	
+	mainSecs += difftime(time(NULL), mainTimer);
 	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
 	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
@@ -912,8 +916,8 @@ double _OCLEvaluator::oclmain(void)
    		}
 	 }
  */   
-	double rootVals[alphabetDimension*siteCount];
 	time(&mainTimer);
+	double rootVals[alphabetDimension*siteCount];
 	int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
     {
@@ -992,6 +996,7 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
     //printf("Made it to the pass-off Function!");
 	
 
+	time(&mainTimer);
     
     updateNodes = eupdateNodes;
     flatParents = eflatParents;
@@ -1002,6 +1007,8 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 	theProbs = etheProbs;
 	theFrequencies = etheFrequencies;
 	taggedInternals = etaggedInternals;
+
+	mainSecs += difftime(time(NULL), mainTimer);
      
 	if (!contextSet)
 	{
@@ -1017,9 +1024,9 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 
 void _OCLEvaluator::Cleanup (int iExitCode)
 {
-	printf("Time in main: %.4lf seconds\n", mainSecs);
-	printf("Time in updating transition buffer: %.4lf seconds\n", buffSecs);
-	printf("Time in queue: %.4lf seconds\n", queueSecs);
+	printf("Time in main: %.4d seconds\n", mainSecs);
+	printf("Time in updating transition buffer: %.4d seconds\n", buffSecs);
+	printf("Time in queue: %.4d seconds\n", queueSecs);
     // Cleanup allocated objects
     printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
