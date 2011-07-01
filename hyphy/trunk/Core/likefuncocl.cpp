@@ -44,11 +44,8 @@ typedef cl_double clfp;
 
 // time stuff:
 // TODO: begin using clock_gettime()
-time_t dtimer;
-time_t htimer;
-long mainTimer;
-long bufferTimer;
-long queueTimer;
+#define BILLION 1E9
+struct timespec mainStart, mainEnd, bufferStart, bufferEnd, queueStart, queueEnd;
 double mainSecs;
 double buffSecs;
 double queueSecs;
@@ -184,7 +181,6 @@ int _OCLEvaluator::setupContext(void)
     
     
     //**************************************************
-    dtimer = time(NULL); 
     
     //Get an OpenCL platform
     ciErr1 = clGetPlatformIDs(1, &cpPlatform, NULL);
@@ -544,6 +540,9 @@ int _OCLEvaluator::setupContext(void)
     }
     
     //ciErr1 = clBuildProgram(cpProgram, 1, &cdDevice, NULL, NULL, NULL);
+
+
+
     ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
@@ -717,9 +716,8 @@ int _OCLEvaluator::setupContext(void)
 double _OCLEvaluator::oclmain(void)
 {
 	// so far this wholebuffer rebuild takes almost no time at all. Perhaps not true re:queue
-	time(&bufferTimer);
-	time(&mainTimer);
 	// Fix the model cache
+	clock_gettime(CLOCK_MONOTONIC, &bufferStart);
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
     model = (void*)malloc
         (sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength);
@@ -738,21 +736,26 @@ double _OCLEvaluator::oclmain(void)
 	}
 	printf("\n");
 */
+	long nodeCode, parentCode;
+	bool isLeaf;
+	_Parameter* tMatrix;
+	int a1, a2;
+	#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
     for (int nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
-        long    nodeCode = updateNodes.lData[nodeID],
-                parentCode = flatParents.lData[nodeCode];
+        nodeCode = updateNodes.lData[nodeID];
+        parentCode = flatParents.lData[nodeCode];
 
-        bool isLeaf = nodeCode < flatLeaves.lLength;
+        isLeaf = nodeCode < flatLeaves.lLength;
 
         if (!isLeaf) nodeCode -= flatLeaves.lLength;
 
-		_Parameter  *		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
-                                               ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
+		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
+                   ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
 		
-        for (int a1 = 0; a1 < alphabetDimension; a1++)
+        for (a1 = 0; a1 < alphabetDimension; a1++)
         {
-            for (int a2 = 0; a2 < alphabetDimension; a2++)
+            for (a2 = 0; a2 < alphabetDimension; a2++)
             {
                 ((fpoint*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
                    (fpoint)(tMatrix[a1*alphabetDimension+a2]);
@@ -760,7 +763,6 @@ double _OCLEvaluator::oclmain(void)
         }
 	}
 	
-	mainSecs += difftime(time(NULL), mainTimer);
 	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
 	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
@@ -771,11 +773,12 @@ double _OCLEvaluator::oclmain(void)
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-	buffSecs += difftime(time(NULL), bufferTimer);
+	clock_gettime(CLOCK_MONOTONIC, &bufferEnd);
+	buffSecs += (bufferEnd.tv_sec - bufferStart.tv_sec)+(bufferEnd.tv_nsec - bufferStart.tv_nsec)/BILLION;
 
+	clock_gettime(CLOCK_MONOTONIC, &queueStart);
 	//printf("Finished writing the model stuff\n");
     // Launch kernel
-	time(&queueTimer);
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
 
@@ -871,7 +874,10 @@ double _OCLEvaluator::oclmain(void)
     //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
     //        sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
     //        NULL, NULL);
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
+    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
+     //       sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
+      //      NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
             sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
             NULL, NULL);
 //    printf("clEnqueueReadBuffer...\n\n"); 
@@ -899,9 +905,10 @@ double _OCLEvaluator::oclmain(void)
     
     
     clFinish(cqCommandQueue);
-	queueSecs += difftime(time(NULL), queueTimer);
+
+	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
+	queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
 //    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
-    htimer = time(NULL);
 	
 // Everything after this point takes a total of about two seconds.
 /*
@@ -916,7 +923,7 @@ double _OCLEvaluator::oclmain(void)
    		}
 	 }
  */   
-	time(&mainTimer);
+	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 	double rootVals[alphabetDimension*siteCount];
 	int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
@@ -942,19 +949,23 @@ double _OCLEvaluator::oclmain(void)
 	double* rootConditionals = rootVals;
 	double result = 0.0;
 //	printf("Rootconditionals: ");
-	for (long siteID = 0; siteID < siteCount; siteID++)
+	long p = 0;
+	long siteID = 0;
+	double accumulator = 0.;
+	for (siteID = 0; siteID < siteCount; siteID++)
 	{
-		double accumulator = 0.;
+		accumulator = 0.;
 //		printf("%g ", *rootConditionals);
-		for (long p = 0; p < alphabetDimension; p++, rootConditionals++)
+		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
+	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
+	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
 //	printf("\n");
-	mainSecs += difftime(time(NULL), mainTimer);
     return result;
 }
 
@@ -995,23 +1006,24 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
     
     //printf("Made it to the pass-off Function!");
 	
+	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 
-	time(&mainTimer);
     
     updateNodes = eupdateNodes;
-    flatParents = eflatParents;
-    flatNodes = eflatNodes;
-    flatCLeaves = eflatCLeaves;
-    flatLeaves = eflatLeaves;
-    flatTree = eflatTree;
 	theProbs = etheProbs;
 	theFrequencies = etheFrequencies;
 	taggedInternals = etaggedInternals;
 
-	mainSecs += difftime(time(NULL), mainTimer);
-     
+	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
+	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+
 	if (!contextSet)
 	{
+		flatNodes = eflatNodes;
+		flatCLeaves = eflatCLeaves;
+		flatLeaves = eflatLeaves;
+		flatTree = eflatTree;
+    	flatParents = eflatParents;
 		lNodeFlags = elNodeFlags;
 		lNodeResolutions = elNodeResolutions;
 		setupContext();
@@ -1024,9 +1036,9 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 
 void _OCLEvaluator::Cleanup (int iExitCode)
 {
-	printf("Time in main: %.4d seconds\n", mainSecs);
-	printf("Time in updating transition buffer: %.4d seconds\n", buffSecs);
-	printf("Time in queue: %.4d seconds\n", queueSecs);
+	printf("Time in main: %.4lf seconds\n", mainSecs);
+	printf("Time in updating transition buffer: %.4lf seconds\n", buffSecs);
+	printf("Time in queue: %.4lf seconds\n", queueSecs);
     // Cleanup allocated objects
     printf("Starting Cleanup...\n\n");
     if(cPathAndName)free(cPathAndName);
