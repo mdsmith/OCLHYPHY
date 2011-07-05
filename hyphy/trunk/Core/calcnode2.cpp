@@ -331,6 +331,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
   
 	//printf("Launching a tree in host...\n"); 
+	/*
 	printf("Update Nodes:");
     for (int i = 0; i < updateNodes.lLength; i++)
     {
@@ -344,7 +345,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         printf(" %i", taggedInternals.lData[i]);
     }
     printf("\n");
-
+*/
 	
 	for  (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
 	{

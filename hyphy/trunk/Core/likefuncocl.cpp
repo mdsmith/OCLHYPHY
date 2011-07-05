@@ -464,7 +464,7 @@ int _OCLEvaluator::setupContext(void)
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + siteState];		\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + parentCharacter];		\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
 	"}																													    		\n" \
 	"\n";
@@ -510,7 +510,8 @@ int _OCLEvaluator::setupContext(void)
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
     "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
-    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
+    "  	 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
+    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; 	\n" \
     "  	 	//sum += childScratch[myChar] * modelScratch[myChar]; 	\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
