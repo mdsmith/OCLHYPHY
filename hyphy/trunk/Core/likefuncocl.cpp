@@ -43,12 +43,14 @@ typedef cl_double clfp;
 #endif
 
 // time stuff:
-// TODO: begin using clock_gettime()
 #define BILLION 1E9
-struct timespec mainStart, mainEnd, bufferStart, bufferEnd, queueStart, queueEnd;
+struct timespec mainStart, mainEnd, bufferStart, bufferEnd, queueStart, queueEnd, setupStart, setupEnd;
 double mainSecs;
 double buffSecs;
 double queueSecs;
+double setupSecs;
+
+bool clean;
 
 cl_context cxGPUContext;        // OpenCL context
 cl_command_queue cqCommandQueue;// OpenCL command que
@@ -58,8 +60,10 @@ cl_device_id cdDevice;          // OpenCL device
 //cl_kernel ckKernel;             // OpenCL kernel
 cl_program cpLeafProgram;
 cl_program cpInternalProgram;
+cl_program cpAmbigProgram;
 cl_kernel ckLeafKernel;
 cl_kernel ckInternalKernel;
+cl_kernel ckAmbigKernel;
 size_t szGlobalWorkSize;        // 1D var for Total # of work items
 size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
@@ -87,7 +91,8 @@ _Parameter 		*iNodeCache,
 _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 
-void *model, *node_cache, *nodRes_cache, *nodFlag_cache, *root_cache;
+void *node_cache, *nodRes_cache, *nodFlag_cache;
+double *root_cache, *model;
 
 
 
@@ -95,6 +100,7 @@ void _OCLEvaluator::init(	long esiteCount,
 									long ealphabetDimension,
 									_Parameter* eiNodeCache)
 {
+	clean = false;
 	cPathAndName = NULL;
 	contextSet = false;
     siteCount = esiteCount;
@@ -103,6 +109,7 @@ void _OCLEvaluator::init(	long esiteCount,
 	mainSecs = 0.0;
 	buffSecs = 0.0;
 	queueSecs = 0.0;
+	setupSecs = 0.0;
 }
 
 // So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
@@ -113,6 +120,7 @@ void _OCLEvaluator::init(	long esiteCount,
 // *********************************************************************
 int _OCLEvaluator::setupContext(void)
 {
+	clock_gettime(CLOCK_MONOTONIC, &setupStart);
     //printf("Made it to the oclmain() function!\n");
 
     //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
@@ -137,7 +145,6 @@ int _OCLEvaluator::setupContext(void)
     nodRes_cache = (void*)malloc
         (sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount));
 	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
-	root_cache = (void*)malloc(sizeof(clfp)*roundCharacters*siteCount);
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -170,13 +177,14 @@ int _OCLEvaluator::setupContext(void)
     //printf("Built nodRes_cache\n");
 	for (int i = 0; i < nodeFlagCount; i++)
 		((long*)nodFlag_cache)[i] = lNodeFlags[i];
-	for (int i = 0; i < siteCount*roundCharacters; i++)
-		((double*)root_cache)[i] = 0.0;
 
     //printf("Created all of the arrays!\n");
 
     // alright, by now taggedInternals have been taken care of, and model has
     // been filled with all of the transition matrices. 
+
+	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
+	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
 
     
     
@@ -284,7 +292,7 @@ int _OCLEvaluator::setupContext(void)
     cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
                     sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
                     &ciErr1);
-    cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
+    cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                     sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
@@ -294,8 +302,8 @@ int _OCLEvaluator::setupContext(void)
 	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
 					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, &ciErr2);
 	ciErr1 |= ciErr2;
-	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR,
-					sizeof(clfp)*siteCount*roundCharacters, root_cache, &ciErr2);
+	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+					sizeof(clfp)*siteCount*roundCharacters, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -312,6 +320,21 @@ int _OCLEvaluator::setupContext(void)
         }
         Cleanup(EXIT_FAILURE);
     }
+
+	//root_cache = (void*)malloc(sizeof(clfp)*roundCharacters*siteCount);
+	root_cache = (double*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
+												CL_MAP_READ, 0, sizeof(clfp)*siteCount*roundCharacters,
+												0, NULL, NULL, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &setupStart);
+	for (int i = 0; i < siteCount*roundCharacters; i++)
+		(root_cache)[i] = 0.0;
+	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
+	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
+	model = (double*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
+										sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength,
+										0, NULL, NULL, NULL);
+    //model = (void*)malloc
+    //    (sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength);
 
     printf("Made all of the buffers on the device!\n");
     
@@ -358,9 +381,6 @@ int _OCLEvaluator::setupContext(void)
 	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
 	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
 	// 		wont be a problem.
-	// TODO: removing the boundary checks doubles performance (only on AMD)
-	// TODO: removing the double write to the local caches doubles performance (on both platforms)
-	// TODO: removing both has no net effect on performance (only on AMD)
 	const char *program_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
@@ -468,51 +488,74 @@ int _OCLEvaluator::setupContext(void)
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
 	"}																													    		\n" \
 	"\n";
-	const char *internal_source = "\n" \
+	const char *ambig_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
-	"								__local fpoint* model_cache, 		  		// argument 3									 	\n" \
+    "    							__constant long* nodFlag_cache, 			// argument 3										\n" \
     "    							long sites, 								// argument 4										\n" \
 	"								long characters, 							// argument 5										\n" \
 	"								long childNodeIndex, 						// argument 6										\n" \
 	"								long parentNodeIndex, 						// argument 7										\n" \
 	"								long roundCharacters, 						// argument 8										\n" \
 	"								int intTagState, 							// argument 9										\n" \
-	"								long nodeID,								// argument 10										\n" \
-	"								__global fpoint* root_cache		)			// argument 11										\n" \
+	"								long nodeID					)				// argument 10										\n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
 	"	__local double childScratch[64];																							\n" \
-	"	//__private double modelScratch[64];																							\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "   //fpoint privateModelScratch[64]; 		             																		\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-	"	//for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-	"	//{																														 	\n" \
-    "   	//privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-    "   	//modelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-    "   	//model_cache[parentCharLocal*roundCharacters + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];	\n" \
-	"	//}																														 	\n" \
+	"	childScratch[parentCharLocal] = nodRes_cache[(-siteState-1)*roundCharacters + parentCharLocal];								\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
+	"	fpoint sum = 0.;																											\n" \
+	"	long myChar;																												\n" \
+	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
+	"	{																															\n" \
+    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; \n" \
+	"	}																															\n" \
+	"	privateParentScratch *= sum;																								\n" \
+	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"}																													    		\n" \
+	"\n";
+	const char *internal_source = "\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"								__global const fpoint* model, 				// argument 1										\n" \
+	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
+    "    							long sites, 								// argument 3										\n" \
+	"								long characters, 							// argument 4										\n" \
+	"								long childNodeIndex, 						// argument 5										\n" \
+	"								long parentNodeIndex, 						// argument 6										\n" \
+	"								long roundCharacters, 						// argument 7										\n" \
+	"								int intTagState, 							// argument 8										\n" \
+	"								long nodeID,								// argument 9										\n" \
+	"								__global fpoint* root_cache		)			// argument 10										\n" \
+	"{																														    	\n" \
+	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
+    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	__local double childScratch[64];																							\n" \
+	"	long site = parentCharGlobal/roundCharacters;																				\n" \
+	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
+    "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+	"	if (intTagState == 1) 																										\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	childScratch[parentCharLocal] = node_cache[childNodeIndex*sites*roundCharacters + parentCharGlobal];						\n" \
 	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
 	"	fpoint sum = 0.;																											\n" \
 	"	long myChar;																												\n" \
 	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
 	"	{																															\n" \
-    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * privateModelScratch[myChar]; 	\n" \
-    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model_cache[parentCharLocal*roundCharacters + myChar]; 	\n" \
-    "  	 	//sum += node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
-    "  	 	//sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + myChar]; 	\n" \
-    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; 	\n" \
-    "  	 	//sum += childScratch[myChar] * modelScratch[myChar]; 	\n" \
+    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; \n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
@@ -530,7 +573,18 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+
 	cpInternalProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&internal_source,
+											NULL, &ciErr1);
+    
+    //printf("clCreateProgramWithSource...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+
+	cpAmbigProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&ambig_source,
 											NULL, &ciErr1);
     
     //printf("clCreateProgramWithSource...\n"); 
@@ -544,7 +598,29 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
+    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
+    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
+            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
+            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
+            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
+            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
+            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
+            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
+        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+
+    ciErr1 = clBuildProgram(cpAmbigProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -567,7 +643,27 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
+    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
+    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
+            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
+            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
+            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
+            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
+            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
+            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
+        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
     //printf("clBuildProgram...\n"); 
     
     // Shows the log
@@ -580,12 +676,16 @@ int _OCLEvaluator::setupContext(void)
     build_log = new char[log_size+1];   
     clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
     build_log = new char[log_size+1];   
+    clGetProgramBuildInfo(cpAmbigProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+    build_log = new char[log_size+1];   
     // Second call to get the log
     //clGetProgramBuildInfo(cpProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     //build_log[log_size] = '\0';
     clGetProgramBuildInfo(cpLeafProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     build_log[log_size] = '\0';
     clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+    build_log[log_size] = '\0';
+    clGetProgramBuildInfo(cpAmbigProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     build_log[log_size] = '\0';
     //printf("%s", build_log);
     delete[] build_log;
@@ -614,6 +714,13 @@ int _OCLEvaluator::setupContext(void)
     //ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
     ckLeafKernel = clCreateKernel(cpLeafProgram, "LeafKernel", &ciErr1);
     printf("clCreateKernel (LeafKernel)...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    ckAmbigKernel = clCreateKernel(cpAmbigProgram, "InternalKernel", &ciErr1);
+    printf("clCreateKernel (InternalKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -670,19 +777,29 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
-	//ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(fpoint)*roundCharacters*roundCharacters/divisor, NULL);
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(cl_short)*roundCharacters*roundCharacters/divisor, NULL);
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckInternalKernel, 11, sizeof(cl_mem), (void*)&cmroot_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(cl_long), (void*)&tempSiteCount);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 4, sizeof(cl_long), (void*)&tempCharCount);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&tempRoundCharCount); 
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_mem), (void*)&cmroot_cache);
     //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -705,13 +822,15 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
                 sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, 0, NULL, NULL);
 	
-    printf("clEnqueueWriteBuffer (node_cache, etc.)...\n"); 
+ */   
+	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
+				sizeof(clfp)*siteCount*roundCharacters, root_cache, 0, NULL, NULL);
+    printf("clEnqueueWriteBuffer (root_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
- */   
 }	
 
 double _OCLEvaluator::oclmain(void)
@@ -720,8 +839,6 @@ double _OCLEvaluator::oclmain(void)
 	// Fix the model cache
 	clock_gettime(CLOCK_MONOTONIC, &bufferStart);
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
-    model = (void*)malloc
-        (sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength);
 /*
 	printf("Update Nodes:");
 	for (int i = 0; i < updateNodes.lLength; i++)
@@ -771,6 +888,7 @@ double _OCLEvaluator::oclmain(void)
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
+	clFinish(cqCommandQueue);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -792,18 +910,30 @@ double _OCLEvaluator::oclmain(void)
 
 		if (isLeaf)
 		{
-			long tempLeafState = 1;
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
-
-			ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
-			ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&parentCode);
-			ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
-			ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
-			taggedInternals.lData[parentCode] = 1;
-
-			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 1, NULL, 
-											&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+			if (((double*)nodFlag_cache)[nodeCode*siteCount] >= 0)
+			{	
+				ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
+				ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&parentCode);
+				ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
+				ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
+				taggedInternals.lData[parentCode] = 1;
+	
+				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 1, NULL, 
+												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+			}
+			else
+			{
+				ciErr1 |= clSetKernelArg(ckAmbigKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
+				ciErr1 |= clSetKernelArg(ckAmbigKernel, 7, sizeof(cl_long), (void*)&parentCode);
+				ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
+				ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
+				taggedInternals.lData[parentCode] = 1;
+	
+				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 1, NULL, 
+												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+			}
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
 		else
@@ -813,10 +943,10 @@ double _OCLEvaluator::oclmain(void)
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
 
-			ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
-			ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&parentCode);
-			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
-			ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&parentCode);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
+			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_long), (void*)&nodeIndex);
 			taggedInternals.lData[parentCode] = 1;
 
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 1, NULL, 
@@ -965,6 +1095,7 @@ double _OCLEvaluator::oclmain(void)
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
+	// this bit takes .25sec total on the i7
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
@@ -1017,8 +1148,6 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 	theFrequencies = etheFrequencies;
 	taggedInternals = etaggedInternals;
 
-	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
-	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
 
 	if (!contextSet)
 	{
@@ -1033,41 +1162,51 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 		contextSet = true;
 	}
 
+	// setupContext is taking .75sec total on the i7
+	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
+	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+
     return oclmain();
 }
 
 
 void _OCLEvaluator::Cleanup (int iExitCode)
 {
-	printf("Time in main: %.4lf seconds\n", mainSecs);
-	printf("Time in updating transition buffer: %.4lf seconds\n", buffSecs);
-	printf("Time in queue: %.4lf seconds\n", queueSecs);
-    // Cleanup allocated objects
-    printf("Starting Cleanup...\n\n");
-    if(cPathAndName)free(cPathAndName);
-    //if(ckKernel)clReleaseKernel(ckKernel);  
-    if(ckLeafKernel)clReleaseKernel(ckLeafKernel);  
-    if(ckInternalKernel)clReleaseKernel(ckInternalKernel);  
-    //if(cpProgram)clReleaseProgram(cpProgram);
-    if(cpLeafProgram)clReleaseProgram(cpLeafProgram);
-    if(cpInternalProgram)clReleaseProgram(cpInternalProgram);
-    if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
-    printf("Halfway...\n\n");
-    if(cxGPUContext)clReleaseContext(cxGPUContext);
-    if(cmNode_cache)clReleaseMemObject(cmNode_cache);
-    if(cmModel_cache)clReleaseMemObject(cmModel_cache);
-    if(cmNodRes_cache)clReleaseMemObject(cmNodRes_cache);
-    if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
-    printf("Done with ocl stuff...\n\n");
-    // Free host memory
-    free(node_cache); 
-    free(model);
-    free(nodRes_cache);
-    free(nodFlag_cache);
-    printf("Done!\n\n");
-    
-	if (iExitCode = EXIT_FAILURE)
-    	exit (iExitCode);
+	if (!clean)
+	{	
+		printf("Time in main: %.4lf seconds\n", mainSecs);
+		printf("Time in updating transition buffer: %.4lf seconds\n", buffSecs);
+		printf("Time in queue: %.4lf seconds\n", queueSecs);
+		printf("Time in Setup: %.4lf seconds\n", setupSecs);
+		// Cleanup allocated objects
+		printf("Starting Cleanup...\n\n");
+		if(cPathAndName)free(cPathAndName);
+		//if(ckKernel)clReleaseKernel(ckKernel);  
+		if(ckLeafKernel)clReleaseKernel(ckLeafKernel);  
+		if(ckInternalKernel)clReleaseKernel(ckInternalKernel);  
+		//if(cpProgram)clReleaseProgram(cpProgram);
+		if(cpLeafProgram)clReleaseProgram(cpLeafProgram);
+		if(cpInternalProgram)clReleaseProgram(cpInternalProgram);
+		if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
+		printf("Halfway...\n\n");
+		if(cxGPUContext)clReleaseContext(cxGPUContext);
+		if(cmNode_cache)clReleaseMemObject(cmNode_cache);
+		if(cmModel_cache)clReleaseMemObject(cmModel_cache);
+		if(cmNodRes_cache)clReleaseMemObject(cmNodRes_cache);
+		if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
+		if(cmroot_cache)clReleaseMemObject(cmroot_cache);
+		printf("Done with ocl stuff...\n\n");
+		// Free host memory
+		free(node_cache); 
+		//free(model);
+		free(nodRes_cache);
+		free(nodFlag_cache);
+		printf("Done!\n\n");
+		clean = true;
+		
+		if (iExitCode = EXIT_FAILURE)
+			exit (iExitCode);
+	}
 }
 
 unsigned int _OCLEvaluator::roundUpToNextPowerOfTwo(unsigned int x)
