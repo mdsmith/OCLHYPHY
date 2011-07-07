@@ -42,6 +42,8 @@ typedef cl_double clfp;
 #pragma OPENCL EXTENSION cl_amd_fp64: enable
 #endif
 
+#define MIN(a,b) ((a)>(b)?(b):(a))
+
 // time stuff:
 #define BILLION 1E9
 struct timespec mainStart, mainEnd, bufferStart, bufferEnd, queueStart, queueEnd, setupStart, setupEnd;
@@ -64,8 +66,8 @@ cl_program cpAmbigProgram;
 cl_kernel ckLeafKernel;
 cl_kernel ckInternalKernel;
 cl_kernel ckAmbigKernel;
-size_t szGlobalWorkSize;        // 1D var for Total # of work items
-size_t szLocalWorkSize;         // 1D var for # of work items in the work group 
+size_t szGlobalWorkSize[2];        // 1D var for Total # of work items
+size_t szLocalWorkSize[2];         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
 size_t szParmDataBytes;         // Byte size of context information
 size_t szKernelLength;          // Byte size of kernel code
@@ -110,6 +112,7 @@ void _OCLEvaluator::init(	long esiteCount,
 	buffSecs = 0.0;
 	queueSecs = 0.0;
 	setupSecs = 0.0;
+
 }
 
 // So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
@@ -228,33 +231,14 @@ int _OCLEvaluator::setupContext(void)
     
     // set and log Global and Local work size dimensions
     
-	//int memoryDivisor = maxLocalSize/(roundCharacters*sizeof(fpoint)*2);
-	//int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize/4);
-	int memoryDivisor = (roundCharacters*sizeof(fpoint)*roundCharacters)/(maxLocalSize);
-	int workGroupDivisor = (roundCharacters*roundCharacters)/maxWorkGroupSize;
-	
-	//int divisor = (memoryDivisor < workGroupDivisor ? workGroupDivisor : memoryDivisor);
-	//int divisor = memoryDivisor;
-	int divisor = 1;
-	printf("MemoryDivisor: %i\nworkGroupDivisor: %i\ndivisor: %i\n", memoryDivisor, workGroupDivisor, divisor);
-    //szLocalWorkSize = roundCharacters*roundCharacters/divisor;
-    szLocalWorkSize = roundCharacters/divisor;
-    //szGlobalWorkSize = roundUpToNextPowerOfTwo(siteCount) * roundCharacters;
-    szGlobalWorkSize = siteCount * roundCharacters;
-    localMemorySize = roundUpToNextPowerOfTwo(alphabetDimension);
-    printf("Global Work Size \t\t= %d\nLocal Work Size \t\t= %d\n# of Work Groups \t\t= %d\n\n", 
-           szGlobalWorkSize, szLocalWorkSize, 
-           (szGlobalWorkSize % szLocalWorkSize + szGlobalWorkSize/szLocalWorkSize)); 
+    szLocalWorkSize[0] = 16; // All of these will have to be genericized. 
+    szLocalWorkSize[1] = 16;
+    szGlobalWorkSize[0] = 64;
+    szGlobalWorkSize[1] = ((siteCount + 8)/16)*16;
+    printf("Global Work Size \t\t= %d, %d\nLocal Work Size \t\t= %d, %d\n# of Work Groups \t\t= %d\n\n", 
+           sszGlobalWorkSize[0], zGlobalWorkSize[1], sszLocalWorkSize[0], zLocalWorkSize[1], 
+           ((szGlobalWorkSize[0]*szGlobalWorkSize[1])/(szLocalWorkSize[0]*szLocalWorkSize[1]))); 
 
-
-
-    cl_uint extcheck;
-    ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, 
-                             sizeof(cl_uint), &extcheck, NULL);
-    if (extcheck == 0 ) 
-    {
-//        printf("Device does not support double precision.\n");
-    }
     
     size_t returned_size = 0;
     cl_char vendor_name[1024] = {0};
@@ -347,119 +331,6 @@ int _OCLEvaluator::setupContext(void)
 
     
     // Create the program
-    // Read the OpenCL kernel in from source file
-    // My options for figuring out the proper parent and child character indices for aquisition and insertion of data are as follows:
-    //      -- pass the conversion arrays and use the globalID and localID to figure out the site number offset from the childNodeIndex
-    //          and parentNodeIndex offsets respectively, using the localID as the final character offset.
-    //      -- the siteNumber is easy, it is the globalID divided by the alphabet dimension. We're padding the alphabet dimension, however, 
-    //          so we have to use the roundCharacters variable I pass in. Thus XNodeIndex*sites*characters + (globalID/roundCharacters)*
-    //          characters + localID is the corrected character index in the iNodeCache array. 
-    // This question brings about a comparison. What are the local and global ID's used for in the toy implementation, and are these 
-    //      necessary/advantageous in the real implementation. 
-    // So the global ID for a given execution of the kernel is unique for all parent characters in the entire node's analysis. 
-    // The local ID is this same parent character's unique ID within a site. This has consequences with character # rounding as well as 
-    //      with local caching. 
-    // Just as a side note however, I still need the nodeIndex for accessing the correct node's portion of the iNodeCache.
-    // Another note, you cannot just pass isLeaf. You have to look it up. Which means putting flatLeaves.lLength on the GPU
-
-    // So dealing with the leaf/not leaf issues. If it is a leaf and the node is ambiguous, lNodeResolutions is a flat array of length
-    //      (count(ambiguous nodes in the analysis)*alphabetDimension). So instead of pointing nodeScratch to a section of iNodeCache
-    //      we just point it to a section of lNodeResolutions.
-    // For non-ambiguous leaves there is no point in looping through the possible child characters for each parent character. Rather
-    //      we multiply each parent character by the value in the transition matrix that corresponds to that parent character at the 
-    //      child character that has a non-zero value. 
-    // Note that sites, characters and nodes are real numbers, not rounded. 
-    // I want to say that you don't have to drop out the inner loop just because you have an unambiguous leaf. 
-    //      This has to do with how the transition matrices are stored. The tMatrix pointer is leaf dependent. I have been pulling 
-    //      Whatever it points to and shoving it in one array assuming that the dimensionalities of the two options are equal. If they 
-    //      are not then a lot of code is wrong. But it would be advantageous to construct this consistent array, so I will change
-    //      the possible outcomes if necessary rather than change the device code. 
-	// So what is currently in place will account for the model not being the same leaf vs internal node. 
-	// For ambiguous leaves, you just fill the nodeScratch with something other than what is currently in the iNodeCache, the model is 
-	// 		the same. 
-	// For unambiguous leaves you fill the modelScratch like normal, but this part of the model array is different because it is a leaf. 
-	// 		However, the nodescratch? Isn't used in the original HYPHY. So you have to fill nodeScratch with something else. 
-	// 		OR, you can change the way you multiply the parent cache. This might be faster because each site is a workgroup and branching
-	// 		wont be a problem.
-	const char *program_source = "\n" \
-	"" PRAGMADEF                                                                                                                        \
-	"" FLOATPREC                                                                                                                        \
-	"__kernel void FirstLoop(	__global fpoint* node_cache, 				// argument 0											\n" \
-	"							//__global const fpoint* model, 				// argument 1											\n" \
-	"							__global const fpoint* model, 				// argument 1											\n" \
-	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
-    "    						__global const long* nodFlag_cache, 		// argument 3											\n" \
-	"							__local fpoint* childScratch, 				// argument 4											\n" \
-	"							__local fpoint* modelScratch, 				// argument 5											\n" \
-	"							__local fpoint* parentScratch,				// argument 6											\n" \
-	"							long leafState,								// argument 7											\n" \
-    "    						long sites, 								// argument 8											\n" \
-	"							long characters, 							// argument 9											\n" \
-	"							long childNodeIndex, 						// argument 10											\n" \
-	"							long parentNodeIndex, 						// argument 11											\n" \
-	"							long roundCharacters, 						// argument 12											\n" \
-	"							int intTagState, 							// argument 13											\n" \
-	"							long nodeID,								// argument 14											\n" \
-	"	 						int divisor, 								// argument 15											\n" \
-	"							__global fpoint* root_cache		)			// argument 16											\n" \
-	"{																														    	\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
-	"	int charsWithinWG = roundCharacters/divisor;																				\n" \
-	"	long wgNumWInSite = (parentCharGlobal & (roundCharacters-1))/charsWithinWG;	// equivalent to %								\n" \
-	"	long site = parentCharGlobal/roundCharacters;																				\n" \
-	"	long parentCharacter = wgNumWInSite * charsWithinWG + parentCharLocal;														\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-    "   double privateModelScratch[64]; 		            \n" \
-    "   double privateParentScratch = 1.0; 		            \n" \
-	"	if (site >= sites) return;																									\n" \
-	"	if (parentCharacter >= characters) return;																					\n" \
-	"	if (intTagState == 0) // reset the parent characters if this is a new LF eval												\n" \
-	"		//parentScratch[parentCharLocal] = 1.0;																					\n" \
-	"		privateParentScratch = 1.0;																					\n" \
-	"	else																														\n" \
-	"		//parentScratch[parentCharLocal] = node_cache[parentCharacterIndex];														\n" \
-	"		privateParentScratch = node_cache[parentCharacterIndex];														\n" \
-	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-    "   if (leafState == 0)                                                                                                         \n" \
-	"		for (int i = 0; i < roundCharacters; i++)																				\n" \
-	"			childScratch[i] = node_cache[childNodeIndex*sites*roundCharacters + site*roundCharacters + i];						\n" \
-    "  // else if (siteState < 0)                                                                                                     \n" \
-	"		//for (int divI = 0; divI < divisor; divI++)																				\n" \
-	"			// TODO: this is wrong																								\n" \
-    "       //	childScratch[charsWithinWG*divI + parentCharLocal] = nodRes_cache[charsWithinWG*divI + characters*(-siteState-1) + parentCharacter];\n" \
-	"	for (int loadI = 0; loadI < roundCharacters; loadI++)																	 	\n" \
-	"	{																	 	\n" \
-    "   	//modelScratch[roundCharacters*parentCharLocal + loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
-    "   	privateModelScratch[loadI] = model[nodeID*roundCharacters*roundCharacters + parentCharacter*roundCharacters + loadI];\n" \
-	"	}																	 	\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	" 	if (leafState == 1 && siteState >= 0)																						\n" \
-	"	{																															\n" \
-	"		//parentScratch[parentCharLocal] *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		//privateParentScratch *= modelScratch[parentCharLocal*roundCharacters + siteState];							\n" \
-	"		//parentScratch[parentCharLocal] *= privateModelScratch[siteState];							\n" \
-	"		privateParentScratch *= privateModelScratch[siteState];							\n" \
-	"	}																															\n" \
-	"	else																														\n" \
-	"	{																															\n" \
-	"		fpoint sum = 0.;																										\n" \
-	"		long myChar;																											\n" \
-	"		for (myChar = 0; myChar < characters; myChar++)																			\n" \
-	"		{																														\n" \
-    "  		 	//sum += childScratch[myChar] * modelScratch[roundCharacters*parentCharLocal + myChar]; 							   	\n" \
-    "  		 	sum += childScratch[myChar] * privateModelScratch[myChar]; 							   	\n" \
-	"		}																														\n" \
-	"		//parentScratch[parentCharLocal] *= sum;																					\n" \
-	"		privateParentScratch *= sum;																					\n" \
-	"	}																															\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	"	//node_cache[parentCharacterIndex] = parentScratch[parentCharLocal];															\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;															\n" \
-	"	//root_cache[site*roundCharacters+parentCharacter] = parentScratch[parentCharLocal];											\n" \
-	"	root_cache[site*roundCharacters+parentCharacter] = privateParentScratch;											\n" \
-	"}																													    		\n" \
-	"\n";
 	const char *leaf_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
@@ -475,8 +346,13 @@ int _OCLEvaluator::setupContext(void)
 	"							int intTagState, 							// argument 9											\n" \
 	"							long nodeID			)						// argument 10											\n" \
 	"{																														    	\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"	// block index																										    	\n" \
+	"   int bx = get_block_id(0); 																									\n" \
+	"   int by = get_block_id(1); 																									\n" \
+	"   // thread index 																											\n" \
+    "   int tx = get_local_id(0);																								 	\n" \
+    "   int ty = get_local_id(1); 																							    	\n" \
+    "   int childStart = ; 																							    	\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
@@ -540,8 +416,8 @@ int _OCLEvaluator::setupContext(void)
 	"								long nodeID,								// argument 9										\n" \
 	"								__global fpoint* root_cache		)			// argument 10										\n" \
 	"{																														    	\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
+	"   int siteGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
+    "   int siteLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
 	"	__local double childScratch[64];																							\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
@@ -920,7 +796,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
-				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 1, NULL, 
+				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 2, NULL, 
 												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
 			}
 			else
@@ -931,7 +807,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
-				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 1, NULL, 
+				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
 			}
 			ciErr1 |= clFlush(cqCommandQueue);
@@ -942,15 +818,14 @@ double _OCLEvaluator::oclmain(void)
 			nodeCode -= flatLeaves.lLength;
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
-
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&parentCode);
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_long), (void*)&nodeIndex);
 			taggedInternals.lData[parentCode] = 1;
+			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
+											&szInternalGlobalWorkSize, &szInternalLocalWorkSize, 0, NULL, NULL);
 
-			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 1, NULL, 
-											&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
 /*
