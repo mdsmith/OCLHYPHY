@@ -58,8 +58,6 @@ cl_context cxGPUContext;        // OpenCL context
 cl_command_queue cqCommandQueue;// OpenCL command que
 cl_platform_id cpPlatform;      // OpenCL platform
 cl_device_id cdDevice;          // OpenCL device
-//cl_program cpProgram;           // OpenCL program
-//cl_kernel ckKernel;             // OpenCL kernel
 cl_program cpLeafProgram;
 cl_program cpInternalProgram;
 cl_program cpAmbigProgram;
@@ -228,15 +226,17 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 = clGetDeviceInfo(cdDevice, CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, 
                              sizeof(size_t), &maxConstSize, NULL);
 	printf("LocalSize: %i, Const size: %i\n", maxLocalSize, maxConstSize);
+
+	printf("sites: %d\n", siteCount);
     
     // set and log Global and Local work size dimensions
     
     szLocalWorkSize[0] = 16; // All of these will have to be genericized. 
     szLocalWorkSize[1] = 16;
     szGlobalWorkSize[0] = 64;
-    szGlobalWorkSize[1] = ((siteCount + 8)/16)*16;
+    szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
     printf("Global Work Size \t\t= %d, %d\nLocal Work Size \t\t= %d, %d\n# of Work Groups \t\t= %d\n\n", 
-           sszGlobalWorkSize[0], zGlobalWorkSize[1], sszLocalWorkSize[0], zLocalWorkSize[1], 
+           szGlobalWorkSize[0], szGlobalWorkSize[1], szLocalWorkSize[0], szLocalWorkSize[1], 
            ((szGlobalWorkSize[0]*szGlobalWorkSize[1])/(szLocalWorkSize[0]*szLocalWorkSize[1]))); 
 
     
@@ -354,6 +354,8 @@ int _OCLEvaluator::setupContext(void)
     "   //int ty = get_local_id(1); 																						    	\n" \
     "   int tx = get_global_id(0); // pchar																						 	\n" \
     "   int ty = get_global_id(1); // site																					    	\n" \
+	"   if (tx >= characters) return; 																							   	\n" \
+	"   if (ty >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + ty*roundCharacters + tx; 					            \n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -417,6 +419,8 @@ int _OCLEvaluator::setupContext(void)
 	"{																														    	\n" \
 	"   int tx = get_global_id(0); // pchar 	  																				 	\n" \
 	"   int ty = get_global_id(1); // site 																						   	\n" \
+	"   if (tx >= characters) return; 																							   	\n" \
+	"   if (ty >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + ty*roundCharacters + tx; 					            \n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -427,7 +431,7 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		float childVal = node_cache[nodeID*roundCharacters*sites + ty*roundCharacters + tx]; 									\n" \
 	"		float modelVal = model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + tx];							\n" \
-    "  	 	sum += childVal * modelVal; 																							\n" \
+    "  		sum += childVal * modelVal; 																							\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
@@ -611,10 +615,9 @@ int _OCLEvaluator::setupContext(void)
     long tempCharCount = alphabetDimension;
 	long tempChildNodeIndex = 0;
 	long tempParentNodeIndex = 0;
-	long tempRoundCharCount = localMemorySize;
+	long tempRoundCharCount = roundUpToNextPowerOfTwo(alphabetDimension);
 	int tempTagIntState = 0;
 	long tempNodeID = 0;
-	int tempDivisor = divisor;
 /*
     // Set the Argument values
 	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
@@ -793,7 +796,7 @@ double _OCLEvaluator::oclmain(void)
 				taggedInternals.lData[parentCode] = 1;
 	
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 2, NULL, 
-												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
 			else
 			{
@@ -804,7 +807,7 @@ double _OCLEvaluator::oclmain(void)
 				taggedInternals.lData[parentCode] = 1;
 	
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
-												&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
@@ -820,7 +823,7 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_long), (void*)&nodeIndex);
 			taggedInternals.lData[parentCode] = 1;
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
-											&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
+											szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
@@ -875,9 +878,9 @@ double _OCLEvaluator::oclmain(void)
     }
     
     // Synchronous/blocking read of results, and check accumulated errors
-    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_TRUE, 0,
-    //        sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
-    //        NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
+            sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
+            NULL, NULL);
     //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
      //       sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
       //      NULL, NULL);
@@ -952,17 +955,17 @@ double _OCLEvaluator::oclmain(void)
 //	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double* rootConditionals = rootVals;
 	double result = 0.0;
-//	printf("Rootconditionals: ");
+	printf("Rootconditionals: ");
 	long p = 0;
 	long siteID = 0;
 	double accumulator = 0.;
 	for (siteID = 0; siteID < siteCount; siteID++)
 	{
 		accumulator = 0.;
-//		printf("%g ", *rootConditionals);
 		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
+			printf("%g ", *rootConditionals);
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
@@ -970,7 +973,7 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
-//	printf("\n");
+	printf("\n");
     return result;
 }
 
