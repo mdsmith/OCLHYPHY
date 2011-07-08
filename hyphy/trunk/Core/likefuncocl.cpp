@@ -361,6 +361,7 @@ int _OCLEvaluator::setupContext(void)
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
+	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
 	"}																													    		\n" \
@@ -429,14 +430,14 @@ int _OCLEvaluator::setupContext(void)
 	"	long myChar;																												\n" \
 	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
 	"	{																															\n" \
-	"		float childVal = node_cache[nodeID*roundCharacters*sites + ty*roundCharacters + tx]; 									\n" \
-	"		float modelVal = model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + tx];							\n" \
+	"		fpoint childVal = node_cache[childNodeIndex*roundCharacters*sites + ty*roundCharacters + myChar];						\n" \
+	"		fpoint modelVal = model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + tx];							\n" \
     "  		sum += childVal * modelVal; 																							\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"	//root_cache[ty*roundCharacters+tx] = privateParentScratch;																	\n" \
-	"	root_cache[ty] = ty;																	\n" \
+	"	root_cache[ty*roundCharacters+tx] = privateParentScratch;																	\n" \
+	"	//root_cache[ty] = ty;																	\n" \
 	"}																													    		\n" \
 	"\n";
     
@@ -956,7 +957,7 @@ double _OCLEvaluator::oclmain(void)
 //	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double* rootConditionals = rootVals;
 	double result = 0.0;
-	printf("Rootconditionals: ");
+//	printf("Rootconditionals: ");
 	long p = 0;
 	long siteID = 0;
 	double accumulator = 0.;
@@ -966,7 +967,7 @@ double _OCLEvaluator::oclmain(void)
 		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
-			printf("%g ", *rootConditionals);
+//			printf("%g ", *rootConditionals);
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
@@ -974,7 +975,7 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
-	printf("\n");
+//	printf("\n");
     return result;
 }
 
