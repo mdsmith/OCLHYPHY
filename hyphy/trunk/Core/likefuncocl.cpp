@@ -445,7 +445,8 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"	root_cache[gy*roundCharacters+gx] = privateParentScratch;																	\n" \
+	"	//root_cache[gy*roundCharacters+gx] = privateParentScratch;																	\n" \
+	"	root_cache[gy*roundCharacters+gx] = by;																	\n" \
 	"}																													    		\n" \
 	"\n";
     
