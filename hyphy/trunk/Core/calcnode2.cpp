@@ -428,7 +428,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                 _Parameter		accumulator = 0.0;
             
                 for (long c = 0; c < alphabetDimension; c++) 
-                    accumulator +=  matrixPointer[c]   * childVector[c];
+                    accumulator +=  matrixPointer[c];
+                    //accumulator +=  matrixPointer[c]   * childVector[c];
                 
                 matrixPointer				  += alphabetDimension;
                                 
@@ -458,13 +459,13 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 
 
 
-//	printf("Rootconditionals: ");
+	printf("Rootconditionals: ");
     for (long siteID = 0; siteID < siteCount; siteID++)
     {
-//		printf(" %g", *rootConditionals);
         _Parameter accumulator = 0.;
         for (long p = 0; p < alphabetDimension; p++,rootConditionals++)
         {
+			printf(" %g", *rootConditionals);
             accumulator += *rootConditionals * theProbs[p];        
         }
                 /* theProbs is a member variable of the tree, which basically determines
@@ -475,7 +476,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         result += log(accumulator) * theFilter->theFrequencies [siteID];
                 // correct for the fact that identical alignment columns may appear more than once
     }
-//	printf("\n");
+	printf("\n");
 
  
     return result;

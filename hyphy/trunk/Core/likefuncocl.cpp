@@ -419,6 +419,7 @@ int _OCLEvaluator::setupContext(void)
 	"   // global index 																											\n" \
 	"	int gx = get_global_id(0);																									\n" \
 	"	int gy = get_global_id(1);																									\n" \
+	"   if (gx >= characters) return; 																							   	\n" \
 	"   if (gy >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   int childBegin = roundCharacters*BLOCK_SIZE*by;																				\n" \
@@ -430,6 +431,7 @@ int _OCLEvaluator::setupContext(void)
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	fpoint sum = 0.;																											\n" \
+	"	int cChar = 0;																											\n" \
 	"	for (int childI = childBegin, modelI = modelBegin; childI <= childEnd; childI += childStep, modelI += modelStep)			\n" \
 	"	{																															\n" \
 	"		__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																	\n" \
@@ -439,14 +441,17 @@ int _OCLEvaluator::setupContext(void)
 	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int k = 0; k < BLOCK_SIZE; k++)																					\n" \
 	"		{																														\n" \
-    "  			sum += childScratch[ty][k] * modelScratch[k][tx]; 																	\n" \
+    "  			//sum += childScratch[ty][k] * modelScratch[k][tx]; 																\n" \
+    "  			//sum += modelScratch[k][tx]; 																						\n" \
+    "  			if (gx < characters && cChar < characters) 																			\n" \
+    "  				sum += model[nodeID*roundCharacters*roundCharacters + modelI + k + roundCharacters*ty + tx]; 					\n" \
+	"			cChar++;																											\n" \
 	"		}																														\n" \
 	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"	//root_cache[gy*roundCharacters+gx] = privateParentScratch;																	\n" \
-	"	root_cache[gy*roundCharacters+gx] = by;																	\n" \
+	"	root_cache[gy*roundCharacters+gx] = privateParentScratch;																	\n" \
 	"}																													    		\n" \
 	"\n";
     
