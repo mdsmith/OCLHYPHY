@@ -166,6 +166,7 @@ int _OCLEvaluator::setupContext(void)
         	((fpoint*)node_cache)[i] = iNodeCache[alphaI];
 			alphaI++;
 		}
+		else ((fpoint*)node_cache)[i] = 0.0;
 //		double t = iNodeCache[i];        
 //		if (i%(siteCount*alphabetDimension) == 0)
 //            printf("Got another one %g\n",t);
@@ -231,7 +232,7 @@ int _OCLEvaluator::setupContext(void)
     
     // set and log Global and Local work size dimensions
     
-    szLocalWorkSize[0] = 16; // All of these will have to be genericized. 
+    szLocalWorkSize[0] = 16; // All of these will have to be generalized. 
     szLocalWorkSize[1] = 16;
     szGlobalWorkSize[0] = 64;
     szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
@@ -398,6 +399,7 @@ int _OCLEvaluator::setupContext(void)
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
 	" #define BLOCK_SIZE 16																											\n" \
+	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
 	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
@@ -431,8 +433,8 @@ int _OCLEvaluator::setupContext(void)
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	fpoint sum = 0.;																											\n" \
-	"	int cChar = 0;																											\n" \
-	"	for (int childI = childBegin, modelI = modelBegin; childI <= childEnd; childI += childStep, modelI += modelStep)			\n" \
+	"	int cChar = 0;																												\n" \
+	"	/*for (int childI = childBegin, modelI = modelBegin; childI <= childEnd; childI += childStep, modelI += modelStep)			\n" \
 	"	{																															\n" \
 	"		__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																	\n" \
 	"		__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																	\n" \
@@ -441,17 +443,47 @@ int _OCLEvaluator::setupContext(void)
 	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int k = 0; k < BLOCK_SIZE; k++)																					\n" \
 	"		{																														\n" \
-    "  			//sum += childScratch[ty][k] * modelScratch[k][tx]; 																\n" \
-    "  			//sum += modelScratch[k][tx]; 																						\n" \
-    "  			if (gx < characters && cChar < characters) 																			\n" \
-    "  				sum += model[nodeID*roundCharacters*roundCharacters + modelI + k + roundCharacters*ty + tx]; 					\n" \
+	"			if (cChar < characters && gx < characters) 																			\n" \
+    "  				//sum += childScratch[ty][k] * modelScratch[k][tx]; 															\n" \
+    "  				sum += childScratch[ty][k]; 																					\n" \
 	"			cChar++;																											\n" \
 	"		}																														\n" \
 	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"	}	*/																														\n" \
+	"	sum = 0.;																													\n" \
+	"	//__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	for (int charBlock = 0; charBlock < 3; charBlock++)																			\n" \
+	"	{																															\n" \
+	"		//for (int j = 0; j < 16; j++)																							\n" \
+	"		//	for (int i = 0; i < 16; i++)																							\n" \
+	"		//		childScratch[j][i] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+j) + (charBlock*16) + i]; 	\n" \
+	"		for (int i = 0; i < 16; i++)																							\n" \
+	"			childScratch[ty][i] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + i]; 	\n" \
+	"		//for (int j = 0; j < 16; j++)																							\n" \
+	"			//childScratch[j][ty] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+j) + (charBlock*16) + ty]; 	\n" \
+	"		//childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + tx]; 	\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*16)+tx) + gx]; 		\n" \
+	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		for (int myChar = 0; myChar < 16; myChar++)																				\n" \
+	"		{																														\n" \
+	"			//sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + (charBlock*16) + myChar] * model[nodeID*roundCharacters*roundCharacters + ((charBlock*16)+myChar)*roundCharacters + gx];									\n" \
+	"			sum += childScratch[ty][myChar] * model[nodeID*roundCharacters*roundCharacters + ((charBlock*16)+myChar)*roundCharacters + gx];									\n" \
+	"		}																														\n" \
+	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"	}																															\n" \
+	"	for (int myChar = 48; myChar < characters; myChar++)																		\n" \
+	"	{																															\n" \
+	"		sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + gx];									\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"	root_cache[gy*roundCharacters+gx] = privateParentScratch;																	\n" \
+	"	if (gy < sites && gx < characters) 																							\n" \
+	"	{																															\n" \
+	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		root_cache[gy*roundCharacters+gx] = privateParentScratch;																\n" \
+	"		//root_cache[gy*roundCharacters+gx] = tx;																\n" \
+	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
     
@@ -894,9 +926,9 @@ double _OCLEvaluator::oclmain(void)
     }
     
     // Synchronous/blocking read of results, and check accumulated errors
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-            sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
-            NULL, NULL);
+    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
+     //       sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
+      //      NULL, NULL);
     //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
      //       sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
       //      NULL, NULL);
@@ -958,20 +990,20 @@ double _OCLEvaluator::oclmain(void)
    		}
 	 }
 	// Verify the node cache TESTING
-/*
-	printf("NodeCache: ");
-    for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
-    {
-		if (i % (alphabetDimension*siteCount) == 0) printf("NEWNODE\n");
-		printf(" %g", iNodeCache[i]);
-    }
-	printf("\n");
-*/
+
+	//printf("NodeCache: ");
+    //for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
+    //{
+	//	if (i % (alphabetDimension*siteCount) == 0) printf("NEWNODE\n");
+	//	printf(" %g", iNodeCache[i]);
+    //}
+	//printf("\n");
+
 
 //	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double* rootConditionals = rootVals;
 	double result = 0.0;
-	printf("Rootconditionals: ");
+	//printf("Rootconditionals: ");
 	long p = 0;
 	long siteID = 0;
 	double accumulator = 0.;
@@ -981,7 +1013,7 @@ double _OCLEvaluator::oclmain(void)
 		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
-			printf("%g ", *rootConditionals);
+			//printf("%g ", *rootConditionals);
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
@@ -989,7 +1021,7 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
-	printf("\n");
+	//printf("\n");
     return result;
 }
 
@@ -1116,5 +1148,4 @@ double _OCLEvaluator::roundDoubleUpToNextPowerOfTwo(double x)
 {
     return pow(2, ceil(log2(x)));
 }
-
 #endif
