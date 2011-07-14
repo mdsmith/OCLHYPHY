@@ -421,8 +421,64 @@ int _OCLEvaluator::setupContext(void)
 	"   // global index 																											\n" \
 	"	int gx = get_global_id(0);																									\n" \
 	"	int gy = get_global_id(1);																									\n" \
-	"   if (gx >= characters) return; 																							   	\n" \
-	"   if (gy >= sites) return; 																								   	\n" \
+    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
+    "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+	"	if (intTagState == 1) 																										\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
+	"	fpoint sum = 0.;																											\n" \
+	"	__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	for (int charBlock = 0; charBlock < 3; charBlock++)																			\n" \
+	"	{																															\n" \
+	"		childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx]; 	\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx]; 		\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		for (int myChar = 0; myChar < BLOCK_SIZE; myChar++)																				\n" \
+	"		{																														\n" \
+	"			sum += childScratch[ty][myChar] * modelScratch[myChar][tx];															\n" \
+	"		}																														\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"	}																															\n" \
+	"	for (int myChar = 48; myChar < characters; myChar++)																		\n" \
+	"	{																															\n" \
+	"		sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + gx];									\n" \
+	"	}																															\n" \
+	"	privateParentScratch *= sum;																								\n" \
+	"	if (gy < sites && gx < characters) 																							\n" \
+	"	{																															\n" \
+	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		root_cache[gy*roundCharacters+gx] = privateParentScratch;																\n" \
+	"	}																															\n" \
+	"}																													    		\n" \
+	"\n";
+	const char *refInternal_source = "\n" \
+	"" PRAGMADEF                                                                                                                        \
+	"" FLOATPREC                                                                                                                        \
+	" #define BLOCK_SIZE 16																											\n" \
+	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
+	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"								__global const fpoint* model, 				// argument 1										\n" \
+	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
+    "    							long sites, 								// argument 3										\n" \
+	"								long characters, 							// argument 4										\n" \
+	"								long childNodeIndex, 						// argument 5										\n" \
+	"								long parentNodeIndex, 						// argument 6										\n" \
+	"								long roundCharacters, 						// argument 7										\n" \
+	"								int intTagState, 							// argument 8										\n" \
+	"								long nodeID,								// argument 9										\n" \
+	"								__global fpoint* root_cache		)			// argument 10										\n" \
+	"{																														    	\n" \
+	"	// block index																										    	\n" \
+	"   int bx = get_group_id(0); 																									\n" \
+	"   int by = get_group_id(1); 																									\n" \
+	"   // thread index 																											\n" \
+    "   int tx = get_local_id(0);	//local pchar 																				 	\n" \
+    "   int ty = get_local_id(1); 	//local site 																			    	\n" \
+	"   // global index 																											\n" \
+	"	int gx = get_global_id(0);																									\n" \
+	"	int gy = get_global_id(1);																									\n" \
+	"   //if (gx >= characters) return; 																							   	\n" \
+	"   //if (gy >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   int childBegin = roundCharacters*BLOCK_SIZE*by;																				\n" \
     "   int childEnd = childBegin + roundCharacters - 1;																			\n" \
@@ -452,27 +508,53 @@ int _OCLEvaluator::setupContext(void)
 	"	}	*/																														\n" \
 	"	sum = 0.;																													\n" \
 	"	//__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	//__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	//__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	//for (int charBlock = 0; charBlock < 3; charBlock++)																			\n" \
 	"	for (int charBlock = 0; charBlock < 3; charBlock++)																			\n" \
 	"	{																															\n" \
 	"		//for (int j = 0; j < 16; j++)																							\n" \
 	"		//	for (int i = 0; i < 16; i++)																							\n" \
 	"		//		childScratch[j][i] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+j) + (charBlock*16) + i]; 	\n" \
-	"		for (int i = 0; i < 16; i++)																							\n" \
-	"			childScratch[ty][i] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + i]; 	\n" \
+	"		//for (int i = 0; i < 16; i++)																							\n" \
+	"			//childScratch[ty][i] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + i]; 	\n" \
 	"		//for (int j = 0; j < 16; j++)																							\n" \
 	"			//childScratch[j][ty] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+j) + (charBlock*16) + ty]; 	\n" \
-	"		//childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + tx]; 	\n" \
+	"		childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + (charBlock*16) + tx]; 	\n" \
 	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*16)+tx) + gx]; 		\n" \
-	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"		for (int myChar = 0; myChar < 16; myChar++)																				\n" \
 	"		{																														\n" \
 	"			//sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + (charBlock*16) + myChar] * model[nodeID*roundCharacters*roundCharacters + ((charBlock*16)+myChar)*roundCharacters + gx];									\n" \
 	"			sum += childScratch[ty][myChar] * model[nodeID*roundCharacters*roundCharacters + ((charBlock*16)+myChar)*roundCharacters + gx];									\n" \
 	"		}																														\n" \
-	"		mem_fence(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
 	"	}																															\n" \
+	"	//for (int myChar = 48; myChar < characters; myChar++)																		\n" \
+	"	/* // WORKS HERE __local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];														\n" \
+	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + tx]; 					\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	for (int myChar = 0; myChar < 16; myChar++)																					\n" \
+	"	{																															\n" \
+	"		sum += childScratch[ty][myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + gx];\n" \
+	"	}																															\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + 16 +  tx]; 					\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	for (int myChar = 0; myChar < 16; myChar++)																				\n" \
+	"	{																															\n" \
+	"		sum += childScratch[ty][myChar] * model[nodeID*roundCharacters*roundCharacters + (16+myChar)*roundCharacters + gx];\n" \
+	"	}																															\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*16+ty) + 32 + tx]; 					\n" \
+	"	barrier(CLK_LOCAL_MEM_FENCE);																								\n" \
+	"	for (int myChar = 0; myChar < 16; myChar++)																				\n" \
+	"	{																															\n" \
+	"		sum += childScratch[ty][myChar] * model[nodeID*roundCharacters*roundCharacters + (32+myChar)*roundCharacters + gx];\n" \
+	"	}*/			// WORKS HERE																												\n" \
 	"	for (int myChar = 48; myChar < characters; myChar++)																		\n" \
 	"	{																															\n" \
 	"		sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + gx];									\n" \
@@ -482,11 +564,12 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
 	"		root_cache[gy*roundCharacters+gx] = privateParentScratch;																\n" \
-	"		//root_cache[gy*roundCharacters+gx] = tx;																\n" \
+	"		//root_cache[gy*roundCharacters+gx] = childScratch[ty][tx];																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
     
+//#define OCLVERBOSE
     
     //cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
     //                                      NULL, &ciErr1);
@@ -522,8 +605,8 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
-    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
+    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -567,8 +650,8 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
-    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
+    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -999,11 +1082,12 @@ double _OCLEvaluator::oclmain(void)
     //}
 	//printf("\n");
 
+#if defined(OCLVERBOSE)
 
 //	double* rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)*siteCount);
 	double* rootConditionals = rootVals;
 	double result = 0.0;
-	//printf("Rootconditionals: ");
+	printf("Rootconditionals: ");
 	long p = 0;
 	long siteID = 0;
 	double accumulator = 0.;
@@ -1013,7 +1097,7 @@ double _OCLEvaluator::oclmain(void)
 		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
 		{
 			accumulator += *rootConditionals * theProbs[p];
-			//printf("%g ", *rootConditionals);
+			printf("%g ", *rootConditionals);
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
@@ -1021,7 +1105,27 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
     
-	//printf("\n");
+	printf("\n");
+#else
+	double* rootConditionals = rootVals;
+	double result = 0.0;
+	long p = 0;
+	long siteID = 0;
+	double accumulator = 0.;
+	for (siteID = 0; siteID < siteCount; siteID++)
+	{
+		accumulator = 0.;
+		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
+		{
+			accumulator += *rootConditionals * theProbs[p];
+		}
+		result += log(accumulator) * theFrequencies[siteID];
+	}
+	// this bit takes .25sec total on the i7
+	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
+	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+    
+#endif
     return result;
 }
 
