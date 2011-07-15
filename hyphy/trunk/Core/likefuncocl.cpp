@@ -428,25 +428,23 @@ int _OCLEvaluator::setupContext(void)
 	"	fpoint sum = 0.;																											\n" \
 	"	__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
-	"	for (int charBlock = 0; charBlock < 3; charBlock++)																			\n" \
+	"	int cChar = 0;																											\n" \
+	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
 	"		childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx]; 	\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx]; 		\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"		for (int myChar = 0; myChar < BLOCK_SIZE; myChar++)																				\n" \
+	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
 	"			sum += childScratch[ty][myChar] * modelScratch[myChar][tx];															\n" \
 	"		}																														\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"	}																															\n" \
-	"	for (int myChar = 48; myChar < characters; myChar++)																		\n" \
-	"	{																															\n" \
-	"		sum += node_cache[childNodeIndex*sites*roundCharacters + gy*roundCharacters + myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + gx];									\n" \
+	"		cChar += 16;																											\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		node_cache[parentCharacterIndex]  = privateParentScratch;																\n" \
 	"		root_cache[gy*roundCharacters+gx] = privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
@@ -605,8 +603,8 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
-    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
+    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -650,8 +648,8 @@ int _OCLEvaluator::setupContext(void)
 
 
 
-    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
-    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
+    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -771,7 +769,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckKernel, 16, sizeof(cl_mem), (void*)&cmroot_cache);
 */
 
-	ciErr1 = clSetKernelArg(ckLeafKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+	ciErr1  = clSetKernelArg(ckLeafKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
