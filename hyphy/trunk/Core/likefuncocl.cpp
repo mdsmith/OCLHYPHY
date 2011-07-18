@@ -77,6 +77,8 @@ cl_mem cmModel_cache;
 cl_mem cmNodRes_cache;
 cl_mem cmNodFlag_cache;
 cl_mem cmroot_cache;
+cl_mem cmScalings_cache;
+cl_mem cmRootScalings_cache;
 long siteCount, alphabetDimension; 
 long* lNodeFlags;
 _SimpleList    updateNodes, 
@@ -90,9 +92,11 @@ _Parameter 		*iNodeCache,
 				*theProbs;
 _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
+float scalar;
 
-void *node_cache, *nodRes_cache, *nodFlag_cache;
+void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache;
 double *root_cache, *model;
+int *rootScalings_cache;
 
 
 
@@ -110,7 +114,7 @@ void _OCLEvaluator::init(	long esiteCount,
 	buffSecs = 0.0;
 	queueSecs = 0.0;
 	setupSecs = 0.0;
-
+	scalar = 10.0;
 }
 
 // So the two interfacing functions will be the constructor, called in SetupLFCaches, and launchmdsocl, called in ComputeBlock.
@@ -142,10 +146,11 @@ int _OCLEvaluator::setupContext(void)
 
     // Make transitionMatrixArray, do other host stuff:
     node_cache = (void*)malloc
-        (sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength)); // +1 for root
+        (sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength)); 
     nodRes_cache = (void*)malloc
         (sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount));
 	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
+	scalings_cache = (void*)malloc(sizeof(cl_int)*roundCharacters*siteCount*(flatNodes.lLength));
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -179,6 +184,8 @@ int _OCLEvaluator::setupContext(void)
     //printf("Built nodRes_cache\n");
 	for (int i = 0; i < nodeFlagCount; i++)
 		((long*)nodFlag_cache)[i] = lNodeFlags[i];
+	for (int i = 0; i < roundCharacters*siteCount*flatNodes.lLength; i++)
+		((int*)scalings_cache)[i] = 0;
 
     //printf("Created all of the arrays!\n");
 
@@ -281,6 +288,9 @@ int _OCLEvaluator::setupContext(void)
                     sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
+	cmScalings_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+					sizeof(cl_int)*siteCount*roundCharacters*flatNodes.lLength, scalings_cache, &ciErr2);
+	ciErr1 |= ciErr2;
     cmNodRes_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
                     sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, &ciErr2);
     ciErr1 |= ciErr2;
@@ -289,6 +299,9 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= ciErr2;
 	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
 					sizeof(clfp)*siteCount*roundCharacters, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
+	cmRootScalings_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+					sizeof(cl_int)*siteCount*roundCharacters, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -310,9 +323,15 @@ int _OCLEvaluator::setupContext(void)
 	root_cache = (double*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
 												CL_MAP_READ, 0, sizeof(clfp)*siteCount*roundCharacters,
 												0, NULL, NULL, NULL);
+	rootScalings_cache = (int*)clEnqueueMapBuffer(cqCommandQueue, cmRootScalings_cache, CL_TRUE,
+												CL_MAP_READ, 0, sizeof(cl_int)*siteCount*roundCharacters,
+												0, NULL, NULL, NULL);
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
 	for (int i = 0; i < siteCount*roundCharacters; i++)
+	{
 		(root_cache)[i] = 0.0;
+		(rootScalings_cache)[i] = 0;
+	}
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
 	model = (double*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
@@ -344,18 +363,29 @@ int _OCLEvaluator::setupContext(void)
 	"							long parentNodeIndex, 						// argument 7											\n" \
 	"							long roundCharacters, 						// argument 8											\n" \
 	"							int intTagState, 							// argument 9											\n" \
-	"							long nodeID			)						// argument 10											\n" \
+	"							long nodeID,								// argument 10											\n" \
+	"							__global int* scalings, 					// argument 11											\n" \
+	"							float scalar, 								// argument 12											\n" \
+	"							float uFlowThresh							// argument 13											\n" \
+	"							) 				 																					\n" \
 	"{																														    	\n" \
     "   int tx = get_global_id(0); // pchar																						 	\n" \
     "   int ty = get_global_id(1); // site																					    	\n" \
 	"   if (ty >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + ty*roundCharacters + tx; 					            \n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+    "   int scale = 0; 							        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
+	"	//if (privateParentScratch < uFlowThresh)																						\n" \
+	"	//{																															\n" \
+	"	//	privateParentScratch *= scalar;																							\n" \
+	"	//	scale++;																												\n" \
+	"	//}																															\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"	scalings[parentCharacterIndex] = scale;																						\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *ambig_source = "\n" \
@@ -371,7 +401,11 @@ int _OCLEvaluator::setupContext(void)
 	"								long parentNodeIndex, 						// argument 7										\n" \
 	"								long roundCharacters, 						// argument 8										\n" \
 	"								int intTagState, 							// argument 9										\n" \
-	"								long nodeID					)				// argument 10										\n" \
+	"								long nodeID,								// argument 10										\n" \
+	"								__global int* scalings, 					// argument 11										\n" \
+	"								float scalar, 								// argument 12										\n" \
+	"								float uFlowThresh							// argument 13										\n" \
+	"								) 				 																				\n" \
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
@@ -410,7 +444,12 @@ int _OCLEvaluator::setupContext(void)
 	"								long roundCharacters, 						// argument 7										\n" \
 	"								int intTagState, 							// argument 8										\n" \
 	"								long nodeID,								// argument 9										\n" \
-	"								__global fpoint* root_cache		)			// argument 10										\n" \
+	"								__global fpoint* root_cache,				// argument 10										\n" \
+	"								__global int* scalings, 					// argument 11										\n" \
+	"								float scalar, 								// argument 12										\n" \
+	"								float uFlowThresh,			 				// argument 13 										\n" \
+	"								__global int* rootScalings_cache			// argument 14										\n" \
+	"								)																								\n" \
 	"{																														    	\n" \
 	"	// block index																										    	\n" \
 	"   int bx = get_group_id(0); 																									\n" \
@@ -423,29 +462,59 @@ int _OCLEvaluator::setupContext(void)
 	"	int gy = get_global_id(1);																									\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
+    "   int scale = 0; 		        																							    \n" \
 	"	if (intTagState == 1) 																										\n" \
+	"	{																															\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
+    "   	scale = scalings[parentCharacterIndex]; 		        															    \n" \
+	"	}																															\n" \
 	"	fpoint sum = 0.;																											\n" \
-	"	__local fpoint childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
-	"	__local fpoint modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
-	"	int cChar = 0;																											\n" \
+	"	__local int 	scaleScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	__local fpoint  childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	__local fpoint  modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
+	"	int cChar = 0;																												\n" \
+	"	int minScale = 30000;																										\n" \
+	"	for (int charBlock = 0; charBlock < 4; charBlock++)																		\n" \
+	"	{																															\n" \
+	"		scaleScratch[ty][tx] = 																									\n" \
+	"			scalings[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx]; 	\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
+	"			if (scaleScratch[ty][myChar] < minScale) minScale = scaleScratch[ty][myChar];										\n" \
+	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
+	"		cChar += BLOCK_SIZE;																									\n" \
+	"	}																															\n" \
+	"	cChar = 0;																													\n" \
 	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
-	"		childScratch[ty][tx] = node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx]; 	\n" \
+	"		childScratch[ty][tx] = 																									\n" \
+	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx];\n" \
+	"		scaleScratch[ty][tx] = 																									\n" \
+	"			scalings[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx]; 	\n" \
 	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
-	"			sum += childScratch[ty][myChar] * modelScratch[myChar][tx];															\n" \
+	"			fpoint temp = childScratch[ty][myChar];																				\n" \
+	"			for (int count = 0; count < scaleScratch[ty][myChar]-minScale; count++)												\n" \
+	"				temp /= scalar;																									\n" \
+	"			sum += temp * modelScratch[myChar][tx];																				\n" \
 	"		}																														\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"		cChar += 16;																											\n" \
+	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
+	"	scale += minScale;																											\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		node_cache[parentCharacterIndex]  = privateParentScratch;																\n" \
-	"		root_cache[gy*roundCharacters+gx] = privateParentScratch;																\n" \
+	"		//if (privateParentScratch < uFlowThresh)																					\n" \
+	"		//{																														\n" \
+	"		//	privateParentScratch *= scalar;																						\n" \
+	"		//	scale++;																											\n" \
+	"		//}																														\n" \
+	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
+	"		node_cache	[parentCharacterIndex]  = privateParentScratch;																\n" \
+	"		root_cache	[gy*roundCharacters+gx] = privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -628,29 +697,10 @@ int _OCLEvaluator::setupContext(void)
 	long tempChildNodeIndex = 0;
 	long tempParentNodeIndex = 0;
 	long tempRoundCharCount = roundUpToNextPowerOfTwo(alphabetDimension);
-	int tempTagIntState = 0;
+	int  tempTagIntState = 0;
 	long tempNodeID = 0;
-/*
-    // Set the Argument values
-	ciErr1 = clSetKernelArg(ckKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
-	ciErr1 |= clSetKernelArg(ckKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
-	ciErr1 |= clSetKernelArg(ckKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
-	ciErr1 |= clSetKernelArg(ckKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
-	ciErr1 |= clSetKernelArg(ckKernel, 4, sizeof(fpoint) * roundCharacters, NULL); // Child
-	//ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(fpoint) * roundCharacters*roundCharacters/divisor, NULL); // Model
-	ciErr1 |= clSetKernelArg(ckKernel, 5, sizeof(fpoint) * roundCharacters*roundCharacters/divisor, NULL); // Model
-	ciErr1 |= clSetKernelArg(ckKernel, 6, sizeof(fpoint) * roundCharacters/divisor, NULL); // Parent
-	ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempLeafState); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckKernel, 8, sizeof(cl_long), (void*)&tempSiteCount);
-	ciErr1 |= clSetKernelArg(ckKernel, 9, sizeof(cl_long), (void*)&tempCharCount);
-	ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckKernel, 12, sizeof(cl_long), (void*)&tempRoundCharCount); 
-	ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckKernel, 14, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckKernel, 15, sizeof(cl_int), (void*)&tempDivisor);
-	ciErr1 |= clSetKernelArg(ckKernel, 16, sizeof(cl_mem), (void*)&cmroot_cache);
-*/
+	float tempScalar = scalar;
+	float tempuFlowThresh = 0.000000001f;
 
 	ciErr1  = clSetKernelArg(ckLeafKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
@@ -663,6 +713,9 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 12, sizeof(cl_float), (void*)&tempScalar);
+	ciErr1 |= clSetKernelArg(ckLeafKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
 
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
@@ -673,8 +726,11 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
-	ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
-	ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempTagIntState);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&tempNodeID); 
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 12, sizeof(cl_float), (void*)&tempScalar);
+	ciErr1 |= clSetKernelArg(ckAmbigKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
 
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
@@ -687,6 +743,12 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempTagIntState); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_long), (void*)&tempNodeID); // reset this in the loop
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_mem), (void*)&cmroot_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 12, sizeof(cl_float), (void*)&tempScalar);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 14, sizeof(cl_mem), (void*)&cmRootScalings_cache);
+
+
     //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -712,6 +774,8 @@ int _OCLEvaluator::setupContext(void)
  */   
 	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
 				sizeof(clfp)*siteCount*roundCharacters, root_cache, 0, NULL, NULL);
+	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmRootScalings_cache, CL_FALSE, 0,
+				sizeof(cl_int)*siteCount*roundCharacters, rootScalings_cache, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer (root_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -839,28 +903,6 @@ double _OCLEvaluator::oclmain(void)
 
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
-/*
-		long tempLeafState = 1;
-        if (!isLeaf) 
-		{
-			nodeCode -= flatLeaves.lLength;
-			tempLeafState = 0;
-		}
-
-		long nodeCodeTemp = nodeCode;
-		int tempIntTagState = taggedInternals.lData[parentCode];
-		ciErr1 |= clSetKernelArg(ckKernel, 7, sizeof(cl_long), (void*)&tempLeafState);
-		ciErr1 |= clSetKernelArg(ckKernel, 10, sizeof(cl_long), (void*)&nodeCodeTemp);
-		ciErr1 |= clSetKernelArg(ckKernel, 11, sizeof(cl_long), (void*)&parentCode);
-		ciErr1 |= clSetKernelArg(ckKernel, 13, sizeof(cl_int), (void*)&tempIntTagState);
-		ciErr1 |= clSetKernelArg(ckKernel, 14, sizeof(cl_long), (void*)&nodeIndex);
-		taggedInternals.lData[parentCode] = 1;
-
-		ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckKernel, 1, NULL, 
-										&szGlobalWorkSize, &szLocalWorkSize, 0, NULL, NULL);
-		ciErr1 |= clFlush(cqCommandQueue);
-        
-*/		
         if (ciErr1 != CL_SUCCESS)
         {
             printf("%i\n", ciErr1); //prints "1"
@@ -890,14 +932,14 @@ double _OCLEvaluator::oclmain(void)
     }
     
     // Synchronous/blocking read of results, and check accumulated errors
-    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-     //       sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength), node_cache, 0,
-      //      NULL, NULL);
-    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_TRUE, 0,
-     //       sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
-      //      NULL, NULL);
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
             sizeof(clfp)*roundCharacters*siteCount, root_cache, 0,
+            NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmScalings_cache, CL_FALSE, 0,
+            sizeof(cl_int)*roundCharacters*siteCount*flatNodes.lLength, scalings_cache, 0,
+            NULL, NULL);
+    ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmRootScalings_cache, CL_FALSE, 0,
+            sizeof(cl_int)*roundCharacters*siteCount, rootScalings_cache, 0,
             NULL, NULL);
 //    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -942,6 +984,7 @@ double _OCLEvaluator::oclmain(void)
    		}
 	 }
  */   
+	int* rootScalings = scalings_cache + alphabetDimension*((flatTree.lLength-1)*siteCount);
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 	double rootVals[alphabetDimension*siteCount];
 	int alphaI = 0;
@@ -949,7 +992,8 @@ double _OCLEvaluator::oclmain(void)
     {
 		if (i%roundCharacters < alphabetDimension)
 		{
-       		rootVals[alphaI] = ((double*)root_cache)[i];
+			rootVals[alphaI] = ((double*)root_cache)[i]*(double)pow(scalar, -rootScalings[i]);
+				//rootVals[alphaI] = ((double*)root_cache)[i]*pow(scalar, (-1*((int*)rootScalings_cache)[i]));
 			alphaI++;
    		}
 	 }
