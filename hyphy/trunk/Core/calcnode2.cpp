@@ -272,58 +272,6 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 					siteCount			  =			theFilter->NumberDistinctSites();
                         // how many unique sites are there
 
-
-//    long sites = siteCount;
-//    long characters = alphabetDimension;
-//    long nodeCount = updateNodes.lLength;
-
-    // so it looks like everything to this point can be done here, in place. 
-
-    // nodeCode comes from updateNodes
-        // so essentially updateNodes is the source of the nodes, converts loop index into nodeCode
-    // parentCode comes from flatParents, like updateNodes, should probably just be passed through. 
-    // updateNodes comes as a parameter, should probably just be passed along to the openCL code
-    // iNodeCache a pointer to a _Parameter, passed as parameter, can be passed right along. 
-    // lNodeFlags is passed as a parameter, a pointer to an array of longs, pass right along. 
-
-    // flatParents comes from god knows where, pass it along
-    // flatNodes comes here from god knows where, pass it along
-    // flatCLeaves idem
-    // flatTree idem
-    // lNodeResolutions this is a LUT, we will pass the LUT and do the same lookup, for now likely on the GPU
-
-    // taggedInternals declared above, pass along, modify in the openCL host code like we do here 
-
-    // isLeaf declared here, its existance can be translated to OpenCL
-    // parentConditionals declared here, using iNodeCache. its existance can translate
-    // tMatrix is created from either flatCLeaves or flatTree, replicate in OpenCL host code
-    // childVector is created here as it can be in the OpenCL host code from iNodeCache etc. 
-
-    // sum created here lives entirely on the GPU
-
-    // siteState this is where it gets interesting. leaves vs nodes and ambigous codes -> branching. 
-    // matrixIndex related to the above process.
-
-
-    // matrixpointer, array indexer, artifact of this implementation. On the Gpu it will likely just be a for loop iterator over a smaller array.
-
-    // so it looks like childVector is a pointer to a subset of iNode cache that can be copied out to a new array and then passed onto the GPU
-
-
-/*    int test = launchmdsocl(siteCount,
-                            nodeCount,
-                            alphabetDimension,
-                            updateNodes,
-                            flatParents,
-                            flatNodes,
-                            flatCLeaves,
-                            flatLeaves,
-                            flatTree,
-                            iNodeCache,
-                            lNodeFlags,
-                            taggedInternals,
-                            lNodeResolutions);
-*/
     // The root node stuff can be done here, in place, assuming the GPU code returns (probably via pointer), the resulting array. 
 //    _Parameter  * rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
     // the root is always the LAST internal node in all lists
