@@ -488,17 +488,17 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	//if (childSum < uFlowThresh)																							\n" \
-	"	int i = 0;																							\n" \
-	"	while (i < 3)																							\n" \
-	"	{																														\n" \
-	"		i++;																													\n" \
+	"	//if (childSum < uFlowThresh)																								\n" \
+	"	//int i = 0;																												\n" \
+	"	//while (i < 3)																												\n" \
+	"	//{																															\n" \
+	"	//	i++;																													\n" \
 	"	//	childSum *= scalar;																										\n" \
-	"	//	sum *= scalar;																										\n" \
-	"	//	scaleScratch++;																										\n" \
-	"	}																														\n" \
-	"	scale += scaleScratch;																									\n" \
-	"	privateParentScratch *= sum;																							\n" \
+	"	//	sum *= scalar;																											\n" \
+	"	//	scaleScratch++;																											\n" \
+	"	//}																															\n" \
+	"	scale += scaleScratch;																										\n" \
+	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		scalings	[parentNodeIndex*sites + gy]	= scale;																	\n" \
