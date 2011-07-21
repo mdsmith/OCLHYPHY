@@ -367,27 +367,16 @@ int _OCLEvaluator::setupContext(void)
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 							        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
-	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
-	"	fpoint modelScratch = model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
-	"	/*if (modelScratch < uFlowThresh) 						\n" \
 	"	{																															\n" \
-	"		modelScratch *= scalar;																							\n" \
-	"		scale++;																												\n" \
-	"	}*/																															\n" \
-	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
-	"	privateParentScratch *= modelScratch;						\n" \
-	"	//if (privateParentScratch < uFlowThresh)																						\n" \
-	"	//{																															\n" \
-	"	//	privateParentScratch *= scalar;																							\n" \
-	"	//	scale++;																												\n" \
-	"	//}																															\n" \
+	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
+    "   	scale = scalings[parentNodeIndex*sites + ty]; 		        														    \n" \
+	"	}																															\n" \
+	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
 	"	scalings[parentNodeIndex*sites+ty] = scale;																					\n" \
 	"}																													    		\n" \
 	"\n";
-// So in the above I assume that no model entry is going to underflow. Obviously this is flawed, but I othewise need a way to set
-// the scale for all parentcharacters in this site, if you catch my drift.
 	const char *ambig_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
@@ -469,11 +458,10 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	fpoint sum = 0.;																											\n" \
 	"	fpoint childSum = 0.;																										\n" \
-	"	int scaleScratch = scalings[childNodeIndex*sites + ty];																		\n" \
+	"	int scaleScratch = scalings[childNodeIndex*sites + gy];																		\n" \
 	"	__local fpoint  childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local fpoint  modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	int cChar = 0;																												\n" \
-	"	cChar = 0;																													\n" \
 	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
 	"		childScratch[ty][tx] = 																									\n" \
@@ -488,15 +476,12 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	//if (childSum < uFlowThresh)																								\n" \
-	"	//int i = 0;																												\n" \
-	"	//while (i < 3)																												\n" \
-	"	//{																															\n" \
-	"	//	i++;																													\n" \
-	"	//	childSum *= scalar;																										\n" \
-	"	//	sum *= scalar;																											\n" \
-	"	//	scaleScratch++;																											\n" \
-	"	//}																															\n" \
+	"	while (childSum < 1 && childSum != 0)																						\n" \
+	"	{																															\n" \
+	"		childSum *= scalar;																										\n" \
+	"		sum *= scalar;																											\n" \
+	"		scaleScratch++;																											\n" \
+	"	}																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
@@ -972,15 +957,13 @@ double _OCLEvaluator::oclmain(void)
 	double rootVals[alphabetDimension*siteCount];
 	int alphaI = 0;
     for (int site = 0; site < siteCount; site++)
-    {
     	for (int pChar = 0; pChar < roundCharacters; pChar++)
-		if (pChar < alphabetDimension)
-		{
-			rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar]*(double)pow(scalar, -rootScalings[site]);
-			//rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar];
-			alphaI++;
-   		}
-	 }
+			if (pChar < alphabetDimension)
+			{
+				rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar]*(double)pow(scalar, -rootScalings[site]);
+				//rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar];
+				alphaI++;
+   			}
 	/*int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
     {
