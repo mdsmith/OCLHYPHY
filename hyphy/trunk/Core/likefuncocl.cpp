@@ -487,10 +487,10 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	scale += scaleScratch;																									\n" \
 	"	privateParentScratch *= sum;																								\n" \
+	"	scalings	[parentCharacterIndex+57*roundCharacters-16]	= scale;														\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		//scalings	[parentCharacterIndex+55*roundCharacters]	= scale;														\n" \
-	"		scalings	[parentCharacterIndex]	= scale;														\n" \
+	"		//scalings	[parentCharacterIndex]	= scale;														\n" \
 	"		node_cache	[parentCharacterIndex]  		= privateParentScratch;														\n" \
 	"		root_cache	[gy*roundCharacters+gx] 		= privateParentScratch;														\n" \
 	"	}																															\n" \
