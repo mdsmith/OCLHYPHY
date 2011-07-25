@@ -485,12 +485,12 @@ int _OCLEvaluator::setupContext(void)
 	"		scaleScratch++;																											\n" \
 	"		scale = 1;																												\n" \
 	"	}																															\n" \
-	"	scale += scaleScratch;																									\n" \
+	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
-	"	scalings	[parentCharacterIndex+57*roundCharacters-16]	= scale;														\n" \
+	"	//scalings	[parentCharacterIndex+57*roundCharacters-16]	= scale;														\n" \
+	"	scalings	[parentCharacterIndex]	= scale;																				\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		//scalings	[parentCharacterIndex]	= scale;														\n" \
 	"		node_cache	[parentCharacterIndex]  		= privateParentScratch;														\n" \
 	"		root_cache	[gy*roundCharacters+gx] 		= privateParentScratch;														\n" \
 	"	}																															\n" \
@@ -957,12 +957,15 @@ double _OCLEvaluator::oclmain(void)
 	 }
  */   
 	//int* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount);
-	int* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount*roundCharacters);
+	int* rootScalings = scalings_cache + ((flatTree.lLength)*siteCount*roundCharacters) - (siteCount*roundCharacters);
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 	double rootVals[alphabetDimension*siteCount];
+	printf("rootScalings: ");
 	int alphaI = 0;
     for (int site = 0; site < siteCount; site++)
     	for (int pChar = 0; pChar < roundCharacters; pChar++)
+		{
+			printf("%i ", rootScalings[site*roundCharacters+pChar]);
 			if (pChar < alphabetDimension)
 			{
 				rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar]*(double)pow(scalar, -rootScalings[site*roundCharacters+pChar]);
@@ -970,6 +973,8 @@ double _OCLEvaluator::oclmain(void)
 				//rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar];
 				alphaI++;
    			}
+		}
+	printf("\n ");
 	/*int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
     {
