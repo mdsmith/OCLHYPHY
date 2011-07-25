@@ -19,6 +19,9 @@
 #include <math.h>
 #include "calcnode.h"
 
+//#define FLOAT
+//#define OCLVERBOSE
+
 #if defined(__APPLE__)
 #include <OpenCL/OpenCL.h>
 typedef float fpoint;
@@ -40,6 +43,12 @@ typedef cl_double clfp;
 #define FLOATPREC "typedef double fpoint; \n"
 #define PRAGMADEF "#pragma OPENCL EXTENSION cl_amd_fp64: enable \n"
 #pragma OPENCL EXTENSION cl_amd_fp64: enable
+#elif defined(FLOAT)
+#include <CL/opencl.h>
+typedef float fpoint;
+typedef cl_float clfp;
+#define FLOATPREC "typedef float fpoint; \n"
+#define PRAGMADEF " \n"
 #endif
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
@@ -94,7 +103,8 @@ _GrowingVector* lNodeResolutions;
 float scalar;
 
 void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache;
-fpoint *root_cache, *model;
+fpoint *root_cache; 
+fpoint *model;
 
 
 
@@ -144,7 +154,7 @@ int _OCLEvaluator::setupContext(void)
 
     // Make transitionMatrixArray, do other host stuff:
     node_cache = (void*)malloc
-        (sizeof(clfp)*roundCharacters*siteCount*(flatNodes.lLength)); 
+        (sizeof(cl_float)*roundCharacters*siteCount*(flatNodes.lLength)); 
     nodRes_cache = (void*)malloc
         (sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount));
 	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
@@ -168,10 +178,10 @@ int _OCLEvaluator::setupContext(void)
     {
 		if (i%(roundCharacters) < alphabetDimension)
 		{
-        	((fpoint*)node_cache)[i] = iNodeCache[alphaI];
+        	((float*)node_cache)[i] = (float)iNodeCache[alphaI];
 			alphaI++;
 		}
-		else ((fpoint*)node_cache)[i] = 0.0;
+		else ((float*)node_cache)[i] = 0.0;
 //		double t = iNodeCache[i];        
 //		if (i%(siteCount*alphabetDimension) == 0)
 //            printf("Got another one %g\n",t);
@@ -282,7 +292,7 @@ int _OCLEvaluator::setupContext(void)
     // Allocate the OpenCL buffer memory objects for the input and output on the
     // device GMEM
     cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
-                    sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
+                    sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
                     &ciErr1);
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                     sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength, 
@@ -346,7 +356,7 @@ int _OCLEvaluator::setupContext(void)
 	const char *leaf_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
-	"__kernel void LeafKernel(	__global fpoint* node_cache, 				// argument 0											\n" \
+	"__kernel void LeafKernel(	__global float* node_cache, 				// argument 0											\n" \
 	"							__global const fpoint* model, 				// argument 1											\n" \
 	"							__global const fpoint* nodRes_cache,   		// argument 2										 	\n" \
     "    						__constant long* nodFlag_cache, 			// argument 3											\n" \
@@ -375,14 +385,14 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"	node_cache[parentCharacterIndex] = (float)privateParentScratch;																	\n" \
 	"	scalings[parentNodeIndex*sites + ty] = scale;																					\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *ambig_source = "\n" \
 	"" PRAGMADEF                                                                                                                        \
 	"" FLOATPREC                                                                                                                        \
-	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"__kernel void InternalKernel(	__global float* node_cache, 				// argument 0										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
     "    							__constant long* nodFlag_cache, 			// argument 3										\n" \
@@ -417,7 +427,7 @@ int _OCLEvaluator::setupContext(void)
     "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; \n" \
 	"	}																															\n" \
 	"	privateParentScratch *= sum;																								\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"	node_cache[parentCharacterIndex] = (float)privateParentScratch;																	\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *internal_source = "\n" \
@@ -425,7 +435,7 @@ int _OCLEvaluator::setupContext(void)
 	"" FLOATPREC                                                                                                                        \
 	" #define BLOCK_SIZE 16																											\n" \
 	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
-	"__kernel void InternalKernel(	__global fpoint* node_cache, 				// argument 0										\n" \
+	"__kernel void InternalKernel(	__global float* node_cache, 				// argument 0										\n" \
 	"								__global const fpoint* model, 				// argument 1										\n" \
 	"								__global const fpoint* nodRes_cache,   		// argument 2									 	\n" \
     "    							long sites, 								// argument 3										\n" \
@@ -489,13 +499,12 @@ int _OCLEvaluator::setupContext(void)
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		scalings	[parentNodeIndex*sites + gy]	= scale;																	\n" \
-	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
+	"		node_cache	[parentCharacterIndex] 	= (float)privateParentScratch;																\n" \
 	"		root_cache	[gy*roundCharacters+gx] = privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
     
-//#define OCLVERBOSE
     
     //cpProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
     //                                      NULL, &ciErr1);
