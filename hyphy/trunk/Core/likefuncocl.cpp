@@ -94,7 +94,7 @@ _GrowingVector* lNodeResolutions;
 float scalar;
 
 void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache;
-double *root_cache, *model;
+fpoint *root_cache, *model;
 
 
 
@@ -180,7 +180,7 @@ int _OCLEvaluator::setupContext(void)
     //printf("Built node_cache\n");
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
-            ((fpoint*)nodRes_cache)[i] = (double)(lNodeResolutions->theData[i]);
+            ((fpoint*)nodRes_cache)[i] = (fpoint)(lNodeResolutions->theData[i]);
     //printf("Built nodRes_cache\n");
 	for (int i = 0; i < nodeFlagCount; i++)
 		((long*)nodFlag_cache)[i] = lNodeFlags[i];
@@ -317,7 +317,7 @@ int _OCLEvaluator::setupContext(void)
     }
 
 	//root_cache = (void*)malloc(sizeof(clfp)*roundCharacters*siteCount);
-	root_cache = (double*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
+	root_cache = (fpoint*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
 												CL_MAP_READ, 0, sizeof(clfp)*siteCount*roundCharacters,
 												0, NULL, NULL, NULL);
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
@@ -327,7 +327,7 @@ int _OCLEvaluator::setupContext(void)
 	}
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
-	model = (double*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
+	model = (fpoint*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
 										sizeof(clfp)*roundCharacters*roundCharacters*updateNodes.lLength,
 										0, NULL, NULL, NULL);
     //model = (void*)malloc
@@ -367,16 +367,16 @@ int _OCLEvaluator::setupContext(void)
 	"   if (ty >= sites) return; 																								   	\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + ty*roundCharacters + tx; 					            \n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
-    "   int scale = 0.; 							        																		    \n" \
+    "   int scale = 0.; 						        																		    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"	{																															\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-    "   	scale = scalings[parentNodeIndex*sites + ty]; 		        														    \n" \
+    "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + ty];																	\n" \
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + tx];						\n" \
 	"	node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"	scalings[parentNodeIndex*sites+ty] = scale;																					\n" \
+	"	scalings[parentCharacterIndex] = scale;																					\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *ambig_source = "\n" \
@@ -400,7 +400,7 @@ int _OCLEvaluator::setupContext(void)
 	"{																														    	\n" \
 	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
     "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
-	"	__local double childScratch[64];																							\n" \
+	"	__local fpoint childScratch[64];																							\n" \
 	"	long site = parentCharGlobal/roundCharacters;																				\n" \
 	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
@@ -452,15 +452,15 @@ int _OCLEvaluator::setupContext(void)
 	"	int gy = get_global_id(1);																									\n" \
     "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   fpoint privateParentScratch = 1.0; 		        																		    \n" \
-    "   int scale = 0.; 		        																							    \n" \
+    "   int scale = 0.; 		        																						    \n" \
 	"	if (intTagState == 1) 																										\n" \
 	"	{																															\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-    "   	scale = scalings[parentNodeIndex*sites + gy]; 		        														    \n" \
+    "   	scale = scalings[parentCharacterIndex]; 		        															    \n" \
 	"	}																															\n" \
 	"	fpoint sum = 0.;																											\n" \
 	"	fpoint childSum = 0.;																										\n" \
-	"	int scaleScratch = scalings[childNodeIndex*sites + gy];																		\n" \
+	"	int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
 	"	__local fpoint  childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local fpoint  modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	int cChar = 0;																												\n" \
@@ -478,22 +478,19 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	if (childSum < 1 && childSum != 0)																							\n" \
+	"	while (childSum < 1 && childSum != 0)																							\n" \
 	"	{																															\n" \
 	"		childSum *= scalar;																										\n" \
 	"		sum *= scalar;																											\n" \
 	"		scaleScratch++;																											\n" \
-	"		scale = 1;																												\n" \
 	"	}																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
-	"	//scalings	[parentCharacterIndex+57*roundCharacters-16]	= scale;														\n" \
-	"	//scalings	[parentCharacterIndex]	= scale;																				\n" \
-	"	scalings	[parentCharacterIndex]	= (fpoint)gy;																				\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		node_cache	[parentCharacterIndex]  		= privateParentScratch;														\n" \
-	"		root_cache	[gy*roundCharacters+gx] 		= privateParentScratch;														\n" \
+	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
+	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
+	"		root_cache	[gy*roundCharacters+gx] = privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -839,7 +836,7 @@ double _OCLEvaluator::oclmain(void)
 		{
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
-			if (((double*)nodFlag_cache)[nodeCode*siteCount] >= 0)
+			if (((fpoint*)nodFlag_cache)[nodeCode*siteCount] >= 0)
 			{	
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&parentCode);
@@ -957,25 +954,26 @@ double _OCLEvaluator::oclmain(void)
    		}
 	 }
  */   
-	//int* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount);
-	fpoint* rootScalings = scalings_cache + ((flatTree.lLength)*siteCount*roundCharacters) - (siteCount*roundCharacters);
+
+
+	fpoint* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount*roundCharacters*sizeof(fpoint));
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
-	fpoint rootVals[alphabetDimension*siteCount];
-	printf("rootScalings: ");
+	double rootVals[alphabetDimension*siteCount];
+	//printf("rootScalings: ");
 	int alphaI = 0;
     for (int site = 0; site < siteCount; site++)
     	for (int pChar = 0; pChar < roundCharacters; pChar++)
 		{
-			printf("%g ", rootScalings[site*roundCharacters+pChar]);
+			//printf("%g ", rootScalings[site*roundCharacters+pChar]);
 			if (pChar < alphabetDimension)
 			{
 				rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar]*(double)pow(scalar, -rootScalings[site*roundCharacters+pChar]);
-				//rootVals[alphaI] = (double)rootScalings[site*roundCharacters+pChar];
-				//rootVals[alphaI] = ((double*)root_cache)[site*roundCharacters + pChar];
 				alphaI++;
    			}
 		}
-	printf("\n ");
+	//printf("\n");
+
+
 	/*int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
     {
