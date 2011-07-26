@@ -961,21 +961,31 @@ double _OCLEvaluator::oclmain(void)
 	int* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount*sizeof(int));
 	double rootVals[alphabetDimension*siteCount];
 	//printf("rootScalings: ");
+/*
 	int alphaI = 0;
-	int site, pChar;
-	double mantissa, scalingMul;
-    for (site = 0; site < siteCount; site++)
+    for (int site = 0; site < siteCount; site++)
 	{
-    	for (pChar = 0; pChar < roundCharacters; pChar++)
+    	for (int pChar = 0; pChar < roundCharacters; pChar++)
 		{
 			//printf("%g ", rootScalings[site*roundCharacters+pChar]);
 			if (pChar < alphabetDimension)
 			{
-				scalingMul = pow(scalar, -rootScalings[site]);
-				mantissa = ((float*)root_cache)[site*roundCharacters + pChar];
+				double scalingMul = pow(scalar, -rootScalings[site]);
+				double mantissa = ((float*)root_cache)[site*roundCharacters + pChar];
 				rootVals[alphaI] = mantissa*scalingMul;
 				alphaI++;
    			}
+		}
+	}
+*/
+	#pragma omp parallel for
+	for (int site = 0; site < siteCount; site++)
+	{
+		for (int pChar = 0; pChar < alphabetDimension; pChar++)
+		{
+			double scalingMul = pow(scalar, -rootScalings[site]);
+			double mantissa = ((float*)root_cache)[site*roundCharacters+pChar];
+			rootVals[site*alphabetDimension + pChar] = mantissa*scalingMul;
 		}
 	}
 	//printf("\n");
