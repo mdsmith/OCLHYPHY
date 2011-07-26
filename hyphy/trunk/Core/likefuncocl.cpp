@@ -959,15 +959,15 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 	int* rootScalings = scalings_cache + ((flatTree.lLength-1)*siteCount*sizeof(int));
 	double rootVals[alphabetDimension*siteCount];
-	//printf("rootScalings: ");
+	printf("rootScalings: ");
 	int alphaI = 0;
 	int site, pChar;
 	double mantissa, scalingMul;
     for (site = 0; site < siteCount; site++)
 	{
+		printf("%i ", rootScalings[site]);
     	for (pChar = 0; pChar < roundCharacters; pChar++)
 		{
-			//printf("%g ", rootScalings[site*roundCharacters+pChar]);
 			if (pChar < alphabetDimension)
 			{
 				scalingMul = pow(scalar, -rootScalings[site]);
@@ -977,7 +977,7 @@ double _OCLEvaluator::oclmain(void)
    			}
 		}
 	}
-	//printf("\n");
+	printf("\n");
 
 	/*int alphaI = 0;
     for (int i = 0; i < siteCount*roundCharacters; i++)
