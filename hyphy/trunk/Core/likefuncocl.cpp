@@ -482,12 +482,12 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	while (childSum < 1 && childSum != 0)																						\n" \
-	"	{																															\n" \
-	"		childSum *= scalar;																										\n" \
-	"		sum *= scalar;																											\n" \
-	"		scaleScratch++;																											\n" \
-	"	}																															\n" \
+	"//	while (childSum < 1 && childSum != 0)																						\n" \
+	"//	{																															\n" \
+	"//		childSum *= scalar;																										\n" \
+	"//		sum *= scalar;																											\n" \
+	"//		scaleScratch++;																											\n" \
+	"//	}																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
@@ -1034,17 +1034,14 @@ double _OCLEvaluator::oclmain(void)
     
 	printf("\n");
 #else
-	double* rootConditionals = rootVals;
 	double result = 0.0;
-	long p = 0;
-	long siteID = 0;
-	double accumulator = 0.;
-	for (siteID = 0; siteID < siteCount; siteID++)
+	#pragma omp parallel for 
+	for (int siteID = 0; siteID < siteCount; siteID++)
 	{
-		accumulator = 0.;
-		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
+		double accumulator = 0.;
+		for (int p = 0; p < alphabetDimension; p++)
 		{
-			accumulator += *rootConditionals * theProbs[p];
+			accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
 		}
 		result += log(accumulator) * theFrequencies[siteID];
 	}
