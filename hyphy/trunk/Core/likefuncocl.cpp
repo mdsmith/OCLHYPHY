@@ -482,12 +482,12 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"//	while (childSum < 1 && childSum != 0)																						\n" \
-	"//	{																															\n" \
-	"//		childSum *= scalar;																										\n" \
-	"//		sum *= scalar;																											\n" \
-	"//		scaleScratch++;																											\n" \
-	"//	}																															\n" \
+	"	//while (childSum < 1 && childSum != 0)																						\n" \
+	"	//{																															\n" \
+	"	//	childSum *= scalar;																										\n" \
+	"	//	sum *= scalar;																											\n" \
+	"	//	scaleScratch++;																											\n" \
+	"	//}																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
@@ -1026,6 +1026,7 @@ double _OCLEvaluator::oclmain(void)
 			accumulator += *rootConditionals * theProbs[p];
 			printf("%g ", *rootConditionals);
 		}
+		
 		result += log(accumulator) * theFrequencies[siteID];
 	}
 	// this bit takes .25sec total on the i7
@@ -1034,8 +1035,8 @@ double _OCLEvaluator::oclmain(void)
     
 	printf("\n");
 #else
-	double result = 0.0;
-	#pragma omp parallel for 
+	double resultList[siteCount];
+	#pragma omp parallel for
 	for (int siteID = 0; siteID < siteCount; siteID++)
 	{
 		double accumulator = 0.;
@@ -1043,8 +1044,17 @@ double _OCLEvaluator::oclmain(void)
 		{
 			accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
 		}
-		result += log(accumulator) * theFrequencies[siteID];
+		resultList[siteID] = log(accumulator) * theFrequencies[siteID];
 	}
+
+	double result = 0.0;
+	int i;
+	#pragma omp parallel for reduction (+:result) schedule(static)
+	for (i = 0; i < siteCount; i++)
+	{
+		result += resultList[i];
+	}
+
 	// this bit takes .25sec total on the i7
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
