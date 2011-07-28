@@ -79,7 +79,6 @@ size_t localMemorySize;         // size of local memory buffer for kernel scratc
 size_t szParmDataBytes;         // Byte size of context information
 size_t szKernelLength;          // Byte size of kernel code
 cl_int ciErr1, ciErr2;          // Error code var
-char* cPathAndName; 		    // var for full paths to data, src, etc.
 
 cl_mem cmNode_cache;
 cl_mem cmModel_cache;
@@ -89,7 +88,7 @@ cl_mem cmroot_cache;
 cl_mem cmScalings_cache;
 long siteCount, alphabetDimension; 
 long* lNodeFlags;
-_SimpleList    updateNodes, 
+_SimpleList  	updateNodes, 
 				flatParents,
 				flatNodes,
 				flatCLeaves,
@@ -113,7 +112,6 @@ void _OCLEvaluator::init(	long esiteCount,
 									_Parameter* eiNodeCache)
 {
 	clean = false;
-	cPathAndName = NULL;
 	contextSet = false;
     siteCount = esiteCount;
     alphabetDimension = ealphabetDimension;
@@ -429,7 +427,7 @@ int _OCLEvaluator::setupContext(void)
 	const char *ambig_source = "\n" \
 	" #define BLOCK_SIZE 16																											\n" \
 	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
-	"__kernel void InternalKernel(	__global float* node_cache, 				// argument 0										\n" \
+	"__kernel void AmbigKernel(		__global float* node_cache, 				// argument 0										\n" \
 	"								__global const float* model, 				// argument 1										\n" \
 	"								__global const float* nodRes_cache,   		// argument 2									 	\n" \
     "    							__constant long* nodFlag_cache, 			// argument 3										\n" \
@@ -473,8 +471,9 @@ int _OCLEvaluator::setupContext(void)
 	"	int cChar = 0;																												\n" \
 	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
+	"		int temp = siteScratch[ty];																								\n" \
 	"		childScratch[ty][tx] = 																									\n" \
-	"			nodRes_cache[(-siteState[ty]-1)*roundCharacters + (charBlock*BLOCK_SIZE) + tx];										\n" \
+	"			nodRes_cache[(-temp-1)*roundCharacters + (charBlock*BLOCK_SIZE) + tx];												\n" \
 	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
@@ -497,7 +496,6 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
 	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
-	"		root_cache	[gy*roundCharacters+gx] = privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -730,8 +728,8 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-    ckAmbigKernel = clCreateKernel(cpAmbigProgram, "InternalKernel", &ciErr1);
-    printf("clCreateKernel (InternalKernel)...\n"); 
+    ckAmbigKernel = clCreateKernel(cpAmbigProgram, "AmbigKernel", &ciErr1);
+    printf("clCreateKernel (AmbigKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -1215,7 +1213,6 @@ void _OCLEvaluator::Cleanup (int iExitCode)
 		printf("Time in Setup: %.4lf seconds\n", setupSecs);
 		// Cleanup allocated objects
 		printf("Starting Cleanup...\n\n");
-		if(cPathAndName)free(cPathAndName);
 		//if(ckKernel)clReleaseKernel(ckKernel);  
 		if(ckLeafKernel)clReleaseKernel(ckLeafKernel);  
 		if(ckInternalKernel)clReleaseKernel(ckInternalKernel);  
