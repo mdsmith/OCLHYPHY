@@ -26,10 +26,11 @@
 #include <OpenCL/OpenCL.h>
 typedef float fpoint;
 typedef cl_float clfp;
-#define FLOATPREC "typedef float fpoint; \n"
-#define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
+//#define FLOATPREC "typedef float fpoint; \n"
+//#define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 #elif defined(NVIDIA)
+#define __OCLPOSIX__
 #include <oclUtils.h>
 typedef double fpoint;
 typedef cl_double clfp;
@@ -37,6 +38,7 @@ typedef cl_double clfp;
 #define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 #elif defined(AMD)
+#define __OCLPOSIX__
 #include <CL/opencl.h>
 typedef double fpoint;
 typedef cl_double clfp;
@@ -131,7 +133,9 @@ void _OCLEvaluator::init(	long esiteCount,
 // *********************************************************************
 int _OCLEvaluator::setupContext(void)
 {
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
+#endif 
     //printf("Made it to the oclmain() function!\n");
 
     //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
@@ -200,8 +204,10 @@ int _OCLEvaluator::setupContext(void)
     // alright, by now taggedInternals have been taken care of, and model has
     // been filled with all of the transition matrices. 
 
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
+#endif
 
     
     
@@ -218,7 +224,7 @@ int _OCLEvaluator::setupContext(void)
     }
     
     //Get the devices
-    ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 4, &cdDevice, NULL);
+	ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &cdDevice, NULL);
  //   printf("clGetDeviceIDs...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -327,13 +333,17 @@ int _OCLEvaluator::setupContext(void)
 	root_cache = (float*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
 												CL_MAP_READ, 0, sizeof(cl_float)*siteCount*roundCharacters,
 												0, NULL, NULL, NULL);
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
+#endif
 	for (int i = 0; i < siteCount*roundCharacters; i++)
 	{
 		(root_cache)[i] = 0.0;
 	}
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
+#endif
 	model = (float*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
 										sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength,
 										0, NULL, NULL, NULL);
@@ -384,8 +394,6 @@ int _OCLEvaluator::setupContext(void)
 	"}																													    		\n" \
 	"\n";
 	const char *ambigOLD_source = "\n" \
-	"" PRAGMADEF                                                                                                                        \
-	"" FLOATPREC                                                                                                                        \
 	"__kernel void InternalKernel(	__global float* node_cache, 				// argument 0										\n" \
 	"								__global const float* model, 				// argument 1										\n" \
 	"								__global const float* nodRes_cache,   		// argument 2									 	\n" \
@@ -837,7 +845,9 @@ double _OCLEvaluator::oclmain(void)
 {
 	// so far this wholebuffer rebuild takes almost no time at all. Perhaps not true re:queue
 	// Fix the model cache
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &bufferStart);
+#endif
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
 /*
 	printf("Update Nodes:");
@@ -892,10 +902,12 @@ double _OCLEvaluator::oclmain(void)
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &bufferEnd);
 	buffSecs += (bufferEnd.tv_sec - bufferStart.tv_sec)+(bufferEnd.tv_nsec - bufferStart.tv_nsec)/BILLION;
 
 	clock_gettime(CLOCK_MONOTONIC, &queueStart);
+#endif
 	//printf("Finished writing the model stuff\n");
     // Launch kernel
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
@@ -1011,6 +1023,7 @@ double _OCLEvaluator::oclmain(void)
     
     clFinish(cqCommandQueue);
 
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
 	queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
 //    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
@@ -1031,6 +1044,7 @@ double _OCLEvaluator::oclmain(void)
 
 
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
+#endif
 	int* rootScalings = scalings_cache + roundCharacters*((flatTree.lLength-1)*siteCount*sizeof(int));
 	double rootVals[alphabetDimension*siteCount];
 	//printf("rootScalings: ");
@@ -1103,8 +1117,10 @@ double _OCLEvaluator::oclmain(void)
 		result += log(accumulator) * theFrequencies[siteID];
 	}
 	// this bit takes .25sec total on the i7
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+#endif
     
 	printf("\n");
 #else
@@ -1129,8 +1145,10 @@ double _OCLEvaluator::oclmain(void)
 	}
 
 	// this bit takes .25sec total on the i7
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+#endif
     
 #endif
     return result;
@@ -1173,7 +1191,9 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
     
     //printf("Made it to the pass-off Function!");
 	
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
+#endif
 
     
     updateNodes = eupdateNodes;
@@ -1196,8 +1216,10 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 	}
 
 	// setupContext is taking .75sec total on the i7
+#ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+#endif
 
     return oclmain();
 }

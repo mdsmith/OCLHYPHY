@@ -186,7 +186,8 @@ then
     elif [ $gpuType = "NVIDIA" ]
     then
         TARGET_NAME="HYPHYMP";
-        LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -lOpenCL -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/lib -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/obj/release ";
+        #LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -lOpenCL -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/lib -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/obj/release ";
+        LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -framework OpenCL -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/lib -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/obj/release ";
         echo "+----------------------------------------------------------------------+"
         echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
         echo "+----------------------------------------------------------------------+"
