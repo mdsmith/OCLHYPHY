@@ -8162,7 +8162,7 @@ those matrices that need to be reexponentiated. Note that the first set can have
  
          
         t->ExponentiateMatrices(changedModels, 
-                                8 /* use one thread */,
+                                6 /* use one thread */,
                                 -1 /*ignore this flag for now */);
                                 
 /* now for the kernel computation you would need to copy modified matrices onto the device using the code like 

@@ -389,97 +389,12 @@ int _OCLEvaluator::setupContext(void)
     "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
-	"	if (siteState >= 0)																											\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
-	"		if (gy < sites && gx < characters) 																							\n" \
-	"		{																															\n" \
-	"			node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"			scalings[parentCharacterIndex] = scale;																						\n" \
-	"		}																															\n" \
+	"		node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
+	"		scalings[parentCharacterIndex] = scale;																						\n" \
 	"	}																															\n" \
-	"/*	else																															\n" \
-	"	{																															\n" \
-	"		// block index																										    	\n" \
-	"   	int bx = get_group_id(0); 																									\n" \
-	"   	int by = get_group_id(1); 																									\n" \
-	"   	// thread index 																											\n" \
-    "   	int tx = get_local_id(0);																									\n" \
-    "   	int ty = get_local_id(1); 																									\n" \
-	"		float sum = 0.;																												\n" \
-	"		float childSum = 0.;																										\n" \
-	"		int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
-	"		__local float childScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
-	"		__local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
-	"		siteState = -siteState-1;																\n" \
-	"		int cChar = 0;																												\n" \
-	"		for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
-	"		{																															\n" \
-	"			childScratch[ty][tx] = 																									\n" \
-	"				nodRes_cache[siteState*roundCharacters + (charBlock*BLOCK_SIZE) + tx];												\n" \
-	"			modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
-	"	//		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"			for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
-	"			{																														\n" \
-	"				sum += childScratch[ty][myChar] * modelScratch[myChar][tx];															\n" \
-	"				childSum += childScratch[ty][myChar];																				\n" \
-	"			}																														\n" \
-	"	//		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
-	"			cChar += BLOCK_SIZE;																									\n" \
-	"		}																																\n" \
-	"		while (childSum < 1 && childSum != 0)																						\n" \
-	"		{																															\n" \
-	"			childSum *= scalar;																										\n" \
-	"			sum *= scalar;																											\n" \
-	"			scaleScratch++;																											\n" \
-	"		}																															\n" \
-	"		scale += scaleScratch;																										\n" \
-	"		privateParentScratch *= sum;																								\n" \
-	"		if (gy < sites && gx < characters) 																							\n" \
-	"		{																															\n" \
-	"			scalings	[parentCharacterIndex]	= scale;																			\n" \
-	"			node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
-	"		}																															\n" \
-	"	}*/																															\n" \
-	"}																													    		\n" \
-	"\n";
-	const char *ambigOLD_source = "\n" \
-	"__kernel void AmbigKernel(	__global float* node_cache, 				// argument 0										\n" \
-	"								__global const float* model, 				// argument 1										\n" \
-	"								__global const float* nodRes_cache,   		// argument 2									 	\n" \
-    "    							__constant long* nodFlag_cache, 			// argument 3										\n" \
-    "    							long sites, 								// argument 4										\n" \
-	"								long characters, 							// argument 5										\n" \
-	"								long childNodeIndex, 						// argument 6										\n" \
-	"								long parentNodeIndex, 						// argument 7										\n" \
-	"								long roundCharacters, 						// argument 8										\n" \
-	"								int intTagState, 							// argument 9										\n" \
-	"								long nodeID,								// argument 10										\n" \
-	"								__global int* scalings, 					// argument 11										\n" \
-	"								float scalar, 								// argument 12										\n" \
-	"								float uFlowThresh							// argument 13										\n" \
-	"								) 				 																				\n" \
-	"{																														    	\n" \
-	"   int parentCharGlobal = get_global_id(0); // a unique global ID for each parentcharacter in the whole node's analysis 	   	\n" \
-    "   int parentCharLocal = get_local_id(0); // a local ID unique within this set of parentcharacters in the site.		    	\n" \
-	"	__local float childScratch[64];																								\n" \
-	"	long site = parentCharGlobal/roundCharacters;																				\n" \
-	"	long parentCharacter = parentCharGlobal & (roundCharacters-1);																\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + site*roundCharacters + parentCharacter; 		            \n" \
-	"	long siteState = nodFlag_cache[childNodeIndex*sites + site];																\n" \
-    "   float privateParentScratch = 1.0; 		        																		    \n" \
-	"	if (intTagState == 1) 																										\n" \
-	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-	"	childScratch[parentCharLocal] = nodRes_cache[(-siteState-1)*roundCharacters + parentCharLocal];								\n" \
-	"	barrier(CLK_LOCAL_MEM_FENCE);																						    	\n" \
-	"	float sum = 0.;																												\n" \
-	"	long myChar;																												\n" \
-	"	for (myChar = 0; myChar < characters; myChar++)																				\n" \
-	"	{																															\n" \
-    "  	 	sum += childScratch[myChar] * model[nodeID*roundCharacters*roundCharacters + myChar*roundCharacters + parentCharacter]; \n" \
-	"	}																															\n" \
-	"	privateParentScratch *= sum;																								\n" \
-	"	node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *ambig_source = "\n" \
@@ -585,9 +500,6 @@ int _OCLEvaluator::setupContext(void)
 	"								float uFlowThresh			 				// argument 13 										\n" \
 	"								)																								\n" \
 	"{																														    	\n" \
-	"	// block index																										    	\n" \
-	"   int bx = get_group_id(0); 																									\n" \
-	"   int by = get_group_id(1); 																									\n" \
 	"   // thread index 																											\n" \
     "   int tx = get_local_id(0);	//local pchar 																				 	\n" \
     "   int ty = get_local_id(1); 	//local site 																			    	\n" \
@@ -611,7 +523,7 @@ int _OCLEvaluator::setupContext(void)
 	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
 	"		childScratch[ty][tx] = 																									\n" \
-	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*(by*BLOCK_SIZE+ty) + (charBlock*BLOCK_SIZE) + tx];\n" \
+	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];				\n" \
 	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
@@ -1324,6 +1236,7 @@ void _OCLEvaluator::Cleanup (int iExitCode)
 		free(nodFlag_cache);
 		printf("Done!\n\n");
 		clean = true;
+		exit(0);
 		
 		if (iExitCode = EXIT_FAILURE)
 			exit (iExitCode);
