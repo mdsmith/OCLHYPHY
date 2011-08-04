@@ -72,9 +72,11 @@ cl_device_id cdDevice;          // OpenCL device
 cl_program cpLeafProgram;
 cl_program cpInternalProgram;
 cl_program cpAmbigProgram;
+cl_program cpResultProgram;
 cl_kernel ckLeafKernel;
 cl_kernel ckInternalKernel;
 cl_kernel ckAmbigKernel;
+cl_kernel ckResultKernel;
 size_t szGlobalWorkSize[2];        // 1D var for Total # of work items
 size_t szLocalWorkSize[2];         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
@@ -87,7 +89,10 @@ cl_mem cmModel_cache;
 cl_mem cmNodRes_cache;
 cl_mem cmNodFlag_cache;
 cl_mem cmroot_cache;
+cl_mem cmroot_scalings;
 cl_mem cmScalings_cache;
+cl_mem cmFrez_cache;
+cl_mem cmProb_cache;
 long siteCount, alphabetDimension; 
 long* lNodeFlags;
 _SimpleList  	updateNodes, 
@@ -103,8 +108,9 @@ _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 float scalar;
 
-void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache;
+void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache, *prob_cache, *freq_cache;
 float *root_cache; 
+int *root_scalings; 
 float *model;
 
 
@@ -163,6 +169,7 @@ int _OCLEvaluator::setupContext(void)
 	//scalings_cache = (void*)malloc(sizeof(cl_int)*siteCount*(flatNodes.lLength));
 	scalings_cache = (void*)malloc
 		(sizeof(cl_int)*roundCharacters*siteCount*(flatNodes.lLength));
+	prof_cache = (void*)malloc(sizeof(int));
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -313,6 +320,8 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= ciErr2;
 	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
 					sizeof(cl_float)*siteCount*roundCharacters, NULL, &ciErr2);
+	cmroot_scalings = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+					sizeof(cl_int)*siteCount*roundCharacters, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -333,13 +342,19 @@ int _OCLEvaluator::setupContext(void)
 	root_cache = (float*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
 												CL_MAP_READ, 0, sizeof(cl_float)*siteCount*roundCharacters,
 												0, NULL, NULL, NULL);
+	root_scalings = (int*)clEnqueueMapBuffer(cqCommandQueue, cmroot_scalings, CL_TRUE,
+												CL_MAP_READ, 0, sizeof(cl_int)*siteCount*roundCharacters,
+												0, NULL, NULL, NULL);
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
 #endif
+/*
 	for (int i = 0; i < siteCount*roundCharacters; i++)
 	{
 		(root_cache)[i] = 0.0;
+		(root_scalings)[i] = 1;
 	}
+*/
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
@@ -497,7 +512,8 @@ int _OCLEvaluator::setupContext(void)
 	"								__global float* root_cache,					// argument 10										\n" \
 	"								__global int* scalings, 					// argument 11										\n" \
 	"								float scalar, 								// argument 12										\n" \
-	"								float uFlowThresh			 				// argument 13 										\n" \
+	"								float uFlowThresh,			 				// argument 13 										\n" \
+	"								__global int* root_scalings					// argument 10										\n" \
 	"								)																								\n" \
 	"{																														    	\n" \
 	"   // thread index 																											\n" \
@@ -544,9 +560,10 @@ int _OCLEvaluator::setupContext(void)
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
-	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
-	"		root_cache	[gy*roundCharacters+gx] = privateParentScratch;																\n" \
+	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
+	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
+	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
+	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -779,6 +796,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 12, sizeof(cl_float), (void*)&tempScalar);
 	ciErr1 |= clSetKernelArg(ckInternalKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
+	ciErr1 |= clSetKernelArg(ckInternalKernel, 14, sizeof(cl_mem), (void*)&cmroot_scalings);
 
 
     //printf("clSetKernelArg 0 - 12...\n\n"); 
@@ -806,6 +824,8 @@ int _OCLEvaluator::setupContext(void)
  */   
 	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
 				sizeof(cl_float)*siteCount*roundCharacters, root_cache, 0, NULL, NULL);
+	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
+				sizeof(cl_int)*siteCount*roundCharacters, root_scalings, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer (root_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -973,9 +993,13 @@ double _OCLEvaluator::oclmain(void)
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
             sizeof(cl_float)*roundCharacters*siteCount, root_cache, 0,
             NULL, NULL);
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmScalings_cache, CL_FALSE, 0,
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
+            sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
+            NULL, NULL);
+    /*ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmScalings_cache, CL_FALSE, 0,
             sizeof(cl_int)*siteCount*flatNodes.lLength*roundCharacters, scalings_cache, 0,
             NULL, NULL);
+	*/
 //    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1024,7 +1048,8 @@ double _OCLEvaluator::oclmain(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 #endif
-	int* rootScalings = scalings_cache + roundCharacters*((flatTree.lLength-1)*siteCount*sizeof(int));
+	//int* rootScalings = scalings_cache + roundCharacters*((flatTree.lLength-1)*siteCount*sizeof(int));
+	int* rootScalings = root_scalings;
 	double rootVals[alphabetDimension*siteCount];
 	//printf("rootScalings: ");
 /*
@@ -1176,13 +1201,13 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 
     
     updateNodes = eupdateNodes;
-	theProbs = etheProbs;
-	theFrequencies = etheFrequencies;
 	taggedInternals = etaggedInternals;
+	theFrequencies = etheFrequencies;
 
 
 	if (!contextSet)
 	{
+		theProbs = etheProbs;
 		flatNodes = eflatNodes;
 		flatCLeaves = eflatCLeaves;
 		flatLeaves = eflatLeaves;
@@ -1228,6 +1253,7 @@ void _OCLEvaluator::Cleanup (int iExitCode)
 		if(cmNodRes_cache)clReleaseMemObject(cmNodRes_cache);
 		if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
 		if(cmroot_cache)clReleaseMemObject(cmroot_cache);
+		if(cmroot_scalings)clReleaseMemObject(cmroot_scalings);
 		printf("Done with ocl stuff...\n\n");
 		// Free host memory
 		free(node_cache); 

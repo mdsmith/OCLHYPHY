@@ -376,8 +376,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                 _Parameter		accumulator = 0.0;
             
                 for (long c = 0; c < alphabetDimension; c++) 
-                    accumulator +=  matrixPointer[c];
-                    //accumulator +=  matrixPointer[c]   * childVector[c];
+                    accumulator +=  matrixPointer[c]   * childVector[c];
                 
                 matrixPointer				  += alphabetDimension;
                                 
