@@ -1033,8 +1033,6 @@ double _OCLEvaluator::oclmain(void)
 	
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
-				//ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 1, NULL, 
-				//								roundCharacters*siteCount, roundCharacters, 0, NULL, NULL);
 			}
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
@@ -1083,6 +1081,7 @@ double _OCLEvaluator::oclmain(void)
     }
 	size_t szResultGlobal = 256;
 	size_t szResultLocal = 32;
+	// TODO: the problem is quite obviously this.
 	ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 1, NULL,
 									&szResultGlobal, &szResultLocal, 0, NULL, NULL); 
 										
@@ -1145,98 +1144,18 @@ double _OCLEvaluator::oclmain(void)
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
 	queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
-//    printf("%f seconds on device\n", difftime(time(NULL), dtimer));
-	
-// Everything after this point takes a total of about two seconds.
-/*
-	time(&mainTimer);
-	int alphaI = 0;
-    for (int i = 0; i < (flatNodes.lLength)*siteCount*roundCharacters; i++)
-    {
-		if (i%roundCharacters < alphabetDimension)
-		{
-       		iNodeCache[alphaI] = ((_Parameter*)node_cache)[i];
-			alphaI++;
-   		}
-	 }
- */   
-
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 #endif
-/*
-	int* rootScalings = root_scalings;
-	double rootVals[alphabetDimension*siteCount];
-	#pragma omp parallel for
-	for (int site = 0; site < siteCount; site++)
-	{
-		for (int pChar = 0; pChar < alphabetDimension; pChar++)
-		{
-			double scalingMul = pow(scalar, -rootScalings[site*roundCharacters+pChar]);
-			double mantissa = ((float*)root_cache)[site*roundCharacters+pChar];
-			rootVals[site*alphabetDimension + pChar] = mantissa*scalingMul;
-		}
-	}
-#if defined(OCLVERBOSE)
-
-	double* rootConditionals = rootVals;
-	double result = 0.0;
-	printf("Rootconditionals: ");
-	long p = 0;
-	long siteID = 0;
-	double accumulator = 0.;
-	for (siteID = 0; siteID < siteCount; siteID++)
-	{
-		accumulator = 0.;
-		for (p = 0; p < alphabetDimension; p++, rootConditionals++)
-		{
-			accumulator += *rootConditionals * theProbs[p];
-			printf("%g ", *rootConditionals);
-		}
-		
-		result += log(accumulator) * theFrequencies[siteID];
-	}
-	// this bit takes .25sec total on the i7
-#ifdef __OCLPOSIX__
-	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
-	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
-#endif
-    
-	printf("\n");
-#else
-	double resultList[siteCount];
-	#pragma omp parallel for
-	for (int siteID = 0; siteID < siteCount; siteID++)
-	{
-		double accumulator = 0.;
-		for (int p = 0; p < alphabetDimension; p++)
-		{
-			accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
-		}
-		resultList[siteID] = log(accumulator) * theFrequencies[siteID];
-	}
-
-	double result = 0.0;
-	int i;
-	#pragma omp parallel for reduction (+:result) schedule(static)
-	for (i = 0; i < siteCount; i++)
-	{
-		result += resultList[i];
-	}
-
-	// this bit takes .25sec total on the i7
-#ifdef __OCLPOSIX__
-	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
-	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
-#endif
-    
-#endif
-*/
 	double oResult = 0.0;
 	#pragma omp parallel for reduction (+:oResult) schedule(static)
 	for (int i = 0; i < siteCount; i++)
 	{
 		oResult += result_cache[i];
 	}
+#ifdef __OCLPOSIX__
+	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
+	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
+#endif
 	return oResult;
     //return result;
 }
