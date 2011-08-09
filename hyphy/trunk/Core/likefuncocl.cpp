@@ -594,7 +594,9 @@ int _OCLEvaluator::setupContext(void)
 	"							 	long characters	 							// argument 8										\n" \
 	"							)																									\n" \
 	"{																																\n" \
-	"	int site = get_global_id(0);																								\n" \
+	"	int site = get_global_id(1);																								\n" \
+	"	int pchar = get_global_id(0);																								\n" \
+	"	if (pchar != 0) return;																										\n" \
 	"	float acc = 0.0;																											\n" \
 	"	int scale = root_scalings[site*roundCharacters];																			\n" \
 	"	for (int rChar = 0; rChar < characters; rChar++)																			\n" \
@@ -602,7 +604,7 @@ int _OCLEvaluator::setupContext(void)
 	"		acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];													\n" \
 	"	}																															\n" \
 	"	if (site < sites)																											\n" \
-	"		result_cache[site] = (log(acc)-scale*log(scalar)) * freq_cache[site];														\n" \
+	"		result_cache[site] = (log(acc)-scale*log(scalar)) * freq_cache[site];													\n" \
 	"}																																\n" \
 	"\n"; 
     
@@ -1069,7 +1071,6 @@ double _OCLEvaluator::oclmain(void)
                 case   CL_INVALID_GLOBAL_OFFSET: printf("CL_INVALID_GLOBAL_OFFSET\n"); break;
                 case   CL_INVALID_WORK_GROUP_SIZE: printf("CL_INVALID_WORK_GROUP_SIZE\n"); break;
                 case   CL_INVALID_WORK_ITEM_SIZE: printf("CL_INVALID_WORK_ITEM_SIZE\n"); break;
-					//          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
                 case   CL_INVALID_IMAGE_SIZE: printf("CL_INVALID_IMAGE_SIZE\n"); break;
                 case   CL_OUT_OF_RESOURCES: printf("CL_OUT_OF_RESOURCES\n"); break;
                 case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break;
@@ -1082,9 +1083,12 @@ double _OCLEvaluator::oclmain(void)
         }
     }
 	size_t szResultGlobal = 256;
-	size_t szResultLocal = 32;
-	ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 1, NULL,
-									&szResultGlobal, &szResultLocal, 0, NULL, NULL); 
+	size_t szResultLocal = 16;
+	// TODO: the problem is quite obviously this. 
+	//ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 1, NULL,
+	//								&szResultGlobal, &szResultLocal, 0, NULL, NULL); 
+	ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
+									szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
 										
    
 	if (ciErr1 != CL_SUCCESS)
