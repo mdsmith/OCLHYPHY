@@ -173,6 +173,10 @@ int _OCLEvaluator::setupContext(void)
 	prob_cache = (void*)malloc(sizeof(cl_float)*roundCharacters);
 	freq_cache = (void*)malloc(sizeof(cl_int)*siteCount);
 	result_cache = (void*)malloc(sizeof(cl_float)*siteCount);
+	freq_cache = (int*)malloc(sizeof(cl_int)*siteCount);
+	root_cache = (float*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
+	root_scalings = (int*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
+	result_cache = (float*)malloc(sizeof(cl_float)*siteCount);
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -210,7 +214,8 @@ int _OCLEvaluator::setupContext(void)
 		((int*)scalings_cache)[i] = 0.;
 	for (int i = 0; i < siteCount; i++)
 		((int*)freq_cache)[i] = theFrequencies[i];
-
+	for (int i = 0; i < siteCount; i++)
+		((int*)freq_cache)[i] = theFrequencies[i];
 	for (int i = 0; i < alphabetDimension; i++)
 			((float*)prob_cache)[i] = theProbs[i];
 
@@ -313,7 +318,7 @@ int _OCLEvaluator::setupContext(void)
     cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
                     sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
                     &ciErr1);
-    cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
+    cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength, 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
@@ -326,18 +331,18 @@ int _OCLEvaluator::setupContext(void)
 	cmNodFlag_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
 					sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, &ciErr2);
 	ciErr1 |= ciErr2;
-	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
 					sizeof(cl_float)*siteCount*roundCharacters, NULL, &ciErr2);
-	cmroot_scalings = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+	cmroot_scalings = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
 					sizeof(cl_int)*siteCount*roundCharacters, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 	cmProb_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
 					sizeof(cl_float)*roundCharacters, prob_cache, &ciErr2);
 	ciErr1 |= ciErr2;
-	cmFreq_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
+	cmFreq_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
 					sizeof(cl_float)*siteCount, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
-	cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
+	cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
 					sizeof(cl_float)*siteCount, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
@@ -356,15 +361,7 @@ int _OCLEvaluator::setupContext(void)
         Cleanup(EXIT_FAILURE);
     }
 
-	root_cache = (float*)clEnqueueMapBuffer(cqCommandQueue, cmroot_cache, CL_TRUE,
-												CL_MAP_READ, 0, sizeof(cl_float)*siteCount*roundCharacters,
-												0, NULL, NULL, NULL);
-	root_scalings = (int*)clEnqueueMapBuffer(cqCommandQueue, cmroot_scalings, CL_TRUE,
-												CL_MAP_READ, 0, sizeof(cl_int)*siteCount*roundCharacters,
-												0, NULL, NULL, NULL);
-	result_cache = (float*)clEnqueueMapBuffer(cqCommandQueue, cmResult_cache, CL_TRUE,
-												CL_MAP_READ, 0, sizeof(cl_float)*siteCount,
-												0, NULL, NULL, NULL);
+
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &setupStart);
 #endif
@@ -379,11 +376,7 @@ int _OCLEvaluator::setupContext(void)
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
 #endif
-	model = (float*)clEnqueueMapBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, CL_MAP_WRITE, 0, 
-										sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength,
-										0, NULL, NULL, NULL);
-	freq_cache = (int*)clEnqueueMapBuffer(cqCommandQueue, cmFreq_cache, CL_TRUE, CL_MAP_WRITE, 0, 
-										sizeof(cl_int)*siteCount, 0, NULL, NULL, NULL);
+	model = (float*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength);
 
     printf("Made all of the buffers on the device!\n");
     
@@ -924,6 +917,8 @@ int _OCLEvaluator::setupContext(void)
 				sizeof(cl_int)*siteCount*roundCharacters, root_scalings, 0, NULL, NULL);
 	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
 				sizeof(cl_float)*siteCount, result_cache, 0, NULL, NULL);
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmFreq_cache, CL_FALSE, 0,
+                sizeof(cl_int)*siteCount, freq_cache, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer (root_cache, etc.)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1086,10 +1081,6 @@ double _OCLEvaluator::oclmain(void)
 			Cleanup(EXIT_FAILURE);
         }
     }
-	for (int i = 0; i < siteCount; i++)
-		((int*)freq_cache)[i] = theFrequencies[i];
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmFreq_cache, CL_FALSE, 0,
-                sizeof(cl_int)*siteCount, freq_cache, 0, NULL, NULL);
 	size_t szResultGlobal = 256;
 	size_t szResultLocal = 32;
 	ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 1, NULL,
@@ -1123,21 +1114,9 @@ double _OCLEvaluator::oclmain(void)
 		Cleanup(EXIT_FAILURE);
 	}
     // Synchronous/blocking read of results, and check accumulated errors
-    /*ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
-            sizeof(cl_float)*roundCharacters*siteCount, root_cache, 0,
-            NULL, NULL);
-    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
-            sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
-            NULL, NULL);
-	*/
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
             sizeof(cl_float)*siteCount, result_cache, 0,
             NULL, NULL);
-    /*ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmScalings_cache, CL_FALSE, 0,
-            sizeof(cl_int)*siteCount*flatNodes.lLength*roundCharacters, scalings_cache, 0,
-            NULL, NULL);
-	*/
-//    printf("clEnqueueReadBuffer...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -1254,7 +1233,7 @@ double _OCLEvaluator::oclmain(void)
 */
 	double oResult = 0.0;
 	#pragma omp parallel for reduction (+:oResult) schedule(static)
-	for (i = 0; i < siteCount; i++)
+	for (int i = 0; i < siteCount; i++)
 	{
 		oResult += result_cache[i];
 	}
