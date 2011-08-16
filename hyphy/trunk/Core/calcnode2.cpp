@@ -364,7 +364,9 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 					continue; // nothing else to do, move to the next site
 				}
 				else
+				{
 					childVector = lNodeResolutions->theData + (-siteState-1) * alphabetDimension; 
+				}
                     // look up the resolution for the ambugious node -- this will have to be on the device as well
                     // but can be in constant memory
 			}
@@ -390,7 +392,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         }
     }
         
-	/*printf("iNodeCache: ");
+/*
+	printf("iNodeCache: ");
 	for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
 	{
 		if (i%(alphabetDimension*siteCount) == 0) printf("NEWNODE \n");

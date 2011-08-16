@@ -203,13 +203,11 @@ int _OCLEvaluator::setupContext(void)
 //            printf("Got another one %g\n",t);
 		//printf ("%i\n",i);
     }
-    //printf("Built node_cache\n");
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
-            ((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
-    //printf("Built nodRes_cache\n");
+           	((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
 	for (int i = 0; i < nodeFlagCount; i++)
-		((long*)nodFlag_cache)[i] = lNodeFlags[i];
+			((long*)nodFlag_cache)[i] = lNodeFlags[i];
 	for (int i = 0; i < roundCharacters*siteCount*(flatNodes.lLength); i++)
 		((int*)scalings_cache)[i] = 0.;
 	for (int i = 0; i < siteCount; i++)
@@ -333,6 +331,7 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= ciErr2;
 	cmroot_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
 					sizeof(cl_float)*siteCount*roundCharacters, NULL, &ciErr2);
+	ciErr1 |= ciErr2;
 	cmroot_scalings = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
 					sizeof(cl_int)*siteCount*roundCharacters, NULL, &ciErr2);
 	ciErr1 |= ciErr2;
@@ -468,24 +467,26 @@ int _OCLEvaluator::setupContext(void)
 	"	int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
 	"	__local float childScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
 	"	__local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
-	"	int siteState = nodFlag_cache[childNodeIndex*sites + gy];																\n" \
-	"	int ambig = 0;																\n" \
-	"	if (siteState < 0)																\n" \
+	"	int siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
+	"	int ambig = 0;																												\n" \
+	"	if (siteState < 0)																											\n" \
 	"	{																															\n" \
-	"		ambig = 1;																\n" \
-	"		siteState = -siteState-1;																\n" \
+	"		ambig = 1;																												\n" \
+	"		siteState = -siteState-1;																								\n" \
 	"	}																															\n" \
 	"	int cChar = 0;																												\n" \
 	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
 	"	{																															\n" \
-	"	if (ambig)																													\n" \
-	"		childScratch[ty][tx] = 																									\n" \
-	"			nodRes_cache[siteState*roundCharacters + (charBlock*BLOCK_SIZE) + tx];												\n" \
-	"	else																														\n" \
-	"		if (charBlock*BLOCK_SIZE + tx == siteState)																				\n" \
-	"			childScratch[ty][tx] = 1;																							\n" \
+	"		if (ambig)																												\n" \
+	"			childScratch[ty][tx] = 																								\n" \
+	"				nodRes_cache[siteState*roundCharacters + (charBlock*BLOCK_SIZE) + tx]; // could it be this ty selection switch?	\n" \
 	"		else																													\n" \
-	"			childScratch[ty][tx] = 0;																							\n" \
+	"		{																														\n" \
+	"			if (charBlock*BLOCK_SIZE + tx == siteState)																			\n" \
+	"				childScratch[ty][tx] = 1;																						\n" \
+	"			else																												\n" \
+	"				childScratch[ty][tx] = 0;																						\n" \
+	"		}																														\n" \
 	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
@@ -1013,7 +1014,9 @@ double _OCLEvaluator::oclmain(void)
 			int ambig = 0;
 			for (int aI = 0; aI < siteCount; aI++)
 				if (lNodeFlags[nodeCode*siteCount + aI] < 0) 
-					ambig = 1;
+					{
+						ambig = 1;
+					}
 			if (!ambig)
 			{	
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
@@ -1113,6 +1116,21 @@ double _OCLEvaluator::oclmain(void)
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
             sizeof(cl_float)*siteCount, result_cache, 0,
             NULL, NULL);
+
+	ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
+			sizeof(cl_float)*flatNodes.lLength*siteCount*roundCharacters, node_cache, 0,
+			NULL,NULL);
+
+	printf("iNodeCache: ");
+	for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
+	{
+		if (i%(roundCharacters*siteCount) == 0) printf("NEWNODE \n");
+		printf(" %g", ((float*)node_cache)[i]);
+	}
+	printf("\n");
+/*
+*/
+	
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -1170,30 +1188,6 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 									_SimpleList& etaggedInternals,
 									_GrowingVector* elNodeResolutions)
 {
-    // so I have all of this in OpenCL land now. All of the operations that remain should be setting up memory or in the Node loop above. 
-    
-    // what about taggedInternals? This can be done on the CPU or the gpu, realistically. doesn't matter. 
-    
-    // memory setup:
-    // cache from which everything is read:
-        // proof of concept: node_cache
-        // hyphy: (per node) childVector -> iNodeCache @ nodeCode*siteCount*alphabetDimension
-        // OpenCL: node_cache: -> iNodeCache, childVector index is determined in the node loop I think? (and then passed as a param?)
-        // *NOTE: for ambiguous characters we will have to use the LUT on the device.
-        // Probably move lNodeResolutions to the GPU
-    
-    // cache to which everything is written:
-        // proof of concept: parent_cache
-        // hyphy: (per node) parentConditionals -> iNodeCache @ parentCode*siteCount*alphabetDimension
-        // OpenCL: node_cache: -> iNodeCache, parentConditional index is determined in the node loop I think? (and then passed as a param?)
-    
-    // transition matrix:
-        // proof of concept: model_cache
-        // hyphy: flatCLeaves or flatTree->GetCompExp(0)
-        // build now, move onto GPU all at once, move a chunk into memory in each kernel. 
-    
-    //printf("Made it to the pass-off Function!");
-	
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 #endif
@@ -1218,7 +1212,6 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 		contextSet = true;
 	}
 
-	// setupContext is taking .75sec total on the i7
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
@@ -1238,12 +1231,14 @@ void _OCLEvaluator::Cleanup (int iExitCode)
 		printf("Time in Setup: %.4lf seconds\n", setupSecs);
 		// Cleanup allocated objects
 		printf("Starting Cleanup...\n\n");
-		//if(ckKernel)clReleaseKernel(ckKernel);  
 		if(ckLeafKernel)clReleaseKernel(ckLeafKernel);  
 		if(ckInternalKernel)clReleaseKernel(ckInternalKernel);  
-		//if(cpProgram)clReleaseProgram(cpProgram);
+		if(ckAmbigKernel)clReleaseKernel(ckAmbigKernel);  
+		if(ckResultKernel)clReleaseKernel(ckResultKernel);  
 		if(cpLeafProgram)clReleaseProgram(cpLeafProgram);
 		if(cpInternalProgram)clReleaseProgram(cpInternalProgram);
+		if(cpAmbigProgram)clReleaseProgram(cpAmbigProgram);
+		if(cpResultProgram)clReleaseProgram(cpResultProgram);
 		if(cqCommandQueue)clReleaseCommandQueue(cqCommandQueue);
 		printf("Halfway...\n\n");
 		if(cxGPUContext)clReleaseContext(cxGPUContext);
@@ -1253,12 +1248,22 @@ void _OCLEvaluator::Cleanup (int iExitCode)
 		if(cmNodFlag_cache)clReleaseMemObject(cmNodFlag_cache);
 		if(cmroot_cache)clReleaseMemObject(cmroot_cache);
 		if(cmroot_scalings)clReleaseMemObject(cmroot_scalings);
+		if(cmScalings_cache)clReleaseMemObject(cmScalings_cache);
+		if(cmFreq_cache)clReleaseMemObject(cmFreq_cache);
+		if(cmProb_cache)clReleaseMemObject(cmProb_cache);
+		if(cmResult_cache)clReleaseMemObject(cmResult_cache);
 		printf("Done with ocl stuff...\n\n");
 		// Free host memory
 		free(node_cache); 
-		//free(model);
+		free(model);
 		free(nodRes_cache);
 		free(nodFlag_cache);
+		free(scalings_cache);
+		free(prob_cache);
+		free(freq_cache);
+		free(root_cache);
+		free(result_cache);
+		free(root_scalings);
 		printf("Done!\n\n");
 		clean = true;
 		exit(0);
@@ -1286,3 +1291,4 @@ double _OCLEvaluator::roundDoubleUpToNextPowerOfTwo(double x)
     return pow(2, ceil(log2(x)));
 }
 #endif
+
