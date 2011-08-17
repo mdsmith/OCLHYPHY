@@ -415,7 +415,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         _Parameter accumulator = 0.;
         for (long p = 0; p < alphabetDimension; p++,rootConditionals++)
         {
-	//		printf(" %g", *rootConditionals);
+			//printf(" %g", *rootConditionals);
             accumulator += *rootConditionals * theProbs[p];        
         }
                 /* theProbs is a member variable of the tree, which basically determines

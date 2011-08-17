@@ -109,12 +109,7 @@ _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 float scalar;
 
-void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache, *prob_cache, *freq_cache;
-float *root_cache, *result_cache; 
-int *root_scalings; 
-float *model;
-
-
+void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache, *prob_cache, *freq_cache, *root_cache, *result_cache, *root_scalings, *model;
 
 void _OCLEvaluator::init(	long esiteCount,
 									long ealphabetDimension,
@@ -162,21 +157,18 @@ int _OCLEvaluator::setupContext(void)
     //printf("Got the sizes of nodeRes and nodeFlag: %i, %i\n", nodeResCount, nodeFlagCount);
 
     // Make transitionMatrixArray, do other host stuff:
-    node_cache = (void*)malloc
-        (sizeof(cl_float)*roundCharacters*siteCount*(flatNodes.lLength)); 
-    nodRes_cache = (void*)malloc
-        (sizeof(cl_float)*roundUpToNextPowerOfTwo(nodeResCount));
-	nodFlag_cache = (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
-	//scalings_cache = (void*)malloc(sizeof(cl_int)*siteCount*(flatNodes.lLength));
-	scalings_cache = (void*)malloc
-		(sizeof(cl_int)*roundCharacters*siteCount*(flatNodes.lLength));
-	prob_cache = (void*)malloc(sizeof(cl_float)*roundCharacters);
-	freq_cache = (void*)malloc(sizeof(cl_int)*siteCount);
-	result_cache = (void*)malloc(sizeof(cl_float)*siteCount);
-	freq_cache = (int*)malloc(sizeof(cl_int)*siteCount);
-	root_cache = (float*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
-	root_scalings = (int*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
-	result_cache = (float*)malloc(sizeof(cl_float)*siteCount);
+    node_cache 		= (void*)malloc(sizeof(cl_float)*roundCharacters*siteCount*(flatNodes.lLength)); 
+    nodRes_cache 	= (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(nodeResCount));
+	nodFlag_cache 	= (void*)malloc(sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount));
+	scalings_cache 	= (void*)malloc(sizeof(cl_int)*roundCharacters*siteCount*(flatNodes.lLength));
+	prob_cache 		= (void*)malloc(sizeof(cl_float)*roundCharacters);
+	freq_cache 		= (void*)malloc(sizeof(cl_int)*siteCount);
+	result_cache 	= (void*)malloc(sizeof(cl_float)*siteCount);
+	freq_cache 		= (void*)malloc(sizeof(cl_int)*siteCount);
+	root_cache 		= (void*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
+	root_scalings 	= (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
+	result_cache 	= (void*)malloc(sizeof(cl_float)*siteCount);
+	model 			= (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength);
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -205,9 +197,9 @@ int _OCLEvaluator::setupContext(void)
     }
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
-           	((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
+          	((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
 	for (int i = 0; i < nodeFlagCount; i++)
-			((long*)nodFlag_cache)[i] = lNodeFlags[i];
+		((long*)nodFlag_cache)[i] = lNodeFlags[i];
 	for (int i = 0; i < roundCharacters*siteCount*(flatNodes.lLength); i++)
 		((int*)scalings_cache)[i] = 0.;
 	for (int i = 0; i < siteCount; i++)
@@ -215,7 +207,7 @@ int _OCLEvaluator::setupContext(void)
 	for (int i = 0; i < siteCount; i++)
 		((int*)freq_cache)[i] = theFrequencies[i];
 	for (int i = 0; i < alphabetDimension; i++)
-			((float*)prob_cache)[i] = theProbs[i];
+		((float*)prob_cache)[i] = theProbs[i];
 
     //printf("Created all of the arrays!\n");
 
@@ -375,7 +367,6 @@ int _OCLEvaluator::setupContext(void)
 	clock_gettime(CLOCK_MONOTONIC, &setupEnd);
 	setupSecs += (setupEnd.tv_sec - setupStart.tv_sec)+(setupEnd.tv_nsec - setupStart.tv_nsec)/BILLION;
 #endif
-	model = (float*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength);
 
     printf("Made all of the buffers on the device!\n");
     
@@ -497,12 +488,14 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
+	"	/*																															\n" \
 	"	while (childSum < 1 && childSum != 0)																						\n" \
 	"	{																															\n" \
 	"		childSum *= scalar;																										\n" \
 	"		sum *= scalar;																											\n" \
 	"		scaleScratch++;																											\n" \
 	"	}																															\n" \
+	"	*/																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
@@ -566,12 +559,14 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
+	"	/*																															\n" \
 	"	while (childSum < 1 && childSum != 0)																						\n" \
 	"	{																															\n" \
 	"		childSum *= scalar;																										\n" \
 	"		sum *= scalar;																											\n" \
 	"		scaleScratch++;																											\n" \
 	"	}																															\n" \
+	"	*/																															\n" \
 	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
@@ -595,8 +590,8 @@ int _OCLEvaluator::setupContext(void)
 	"							 	long characters	 							// argument 8										\n" \
 	"							)																									\n" \
 	"{																																\n" \
-	"	int site = get_global_id(1);																								\n" \
 	"	int pchar = get_global_id(0);																								\n" \
+	"	int site = get_global_id(1);																								\n" \
 	"	if (pchar != 0) return;																										\n" \
 	"	float acc = 0.0;																											\n" \
 	"	int scale = root_scalings[site*roundCharacters];																			\n" \
@@ -932,6 +927,7 @@ int _OCLEvaluator::setupContext(void)
 
 double _OCLEvaluator::oclmain(void)
 {
+	//printf("newLF!\n");
 	// so far this wholebuffer rebuild takes almost no time at all. Perhaps not true re:queue
 	// Fix the model cache
 #ifdef __OCLPOSIX__
@@ -1025,6 +1021,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
+	//			printf("Leaf!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
@@ -1036,6 +1033,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
+	//			printf("ambig!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
@@ -1055,6 +1053,7 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
 											szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 
+	//		printf("internal!\n");
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
         if (ciErr1 != CL_SUCCESS)
@@ -1120,7 +1119,21 @@ double _OCLEvaluator::oclmain(void)
 	ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
 			sizeof(cl_float)*flatNodes.lLength*siteCount*roundCharacters, node_cache, 0,
 			NULL,NULL);
+	
+	ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
+            sizeof(cl_float)*roundCharacters*siteCount, root_cache, 0,
+            NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
+            sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
+            NULL, NULL);
 
+/*
+	printf("ResultCache: ");
+	for (int i = 0; i < siteCount; i++)
+	{
+		printf(" %g", ((float*)result_cache)[i]);
+	}
+	printf("\n");
 	printf("iNodeCache: ");
 	for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
 	{
@@ -1128,9 +1141,7 @@ double _OCLEvaluator::oclmain(void)
 		printf(" %g", ((float*)node_cache)[i]);
 	}
 	printf("\n");
-/*
 */
-	
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -1156,23 +1167,73 @@ double _OCLEvaluator::oclmain(void)
     
     clFinish(cqCommandQueue);
 
+	int* rootScalings = root_scalings;
+	double rootVals[alphabetDimension*siteCount];
+
+	//printf("rootCache: \n");
+	#pragma omp parallel for
+	for (int site = 0; site < siteCount; site++)
+	{
+		for (int pChar = 0; pChar < alphabetDimension; pChar++)
+		{
+			double scalingMul = pow(scalar, -rootScalings[site*roundCharacters+pChar]);
+			double mantissa = ((float*)root_cache)[site*roundCharacters+pChar];
+			//rootVals[site*alphabetDimension + pChar] = mantissa*scalingMul;
+			rootVals[site*alphabetDimension + pChar] = mantissa;
+// TODO: fix this, it might work just fine but bad numbers were going through it
+			if (mantissa < 0) mantissa *= -1;
+			//printf("%g ", ((float*)root_cache)[site*roundCharacters+pChar]);
+		}
+	}
+	//printf("\n");
+	printf("resultList: \n");
+	//printf("rootConditionals: \n");
+	double resultList[siteCount];
+	//#pragma omp parallel for
+	for (int siteID = 0; siteID < siteCount; siteID++)
+	{
+		double accumulator = 0.;
+		for (int p = 0; p < alphabetDimension; p++)
+		{
+			accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
+	//		printf("%g ", rootVals[siteID*alphabetDimension+p]);
+		}
+		resultList[siteID] = log(accumulator) * theFrequencies[siteID];
+		//if (resultList[siteID] < -20000)
+			//printf("Accumulator: %g", accumulator);
+		//printf("%g ", resultList[siteID]);
+	}
+	printf("\n");
+
+	double result = 0.0;
+	int i;
+	//#pragma omp parallel for reduction (+:result) schedule(static)
+	for (i = 0; i < siteCount; i++)
+	{
+		result += resultList[i];
+	}
+	printf("result: %g\n", result);
+	
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
 	queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 #endif
+/*
 	double oResult = 0.0;
 	#pragma omp parallel for reduction (+:oResult) schedule(static)
 	for (int i = 0; i < siteCount; i++)
 	{
-		oResult += result_cache[i];
+		oResult += ((float*)result_cache)[i];
 	}
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &mainEnd);
 	mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
 #endif
+	printf("oResult: %g\n", oResult);
 	return oResult;
-    //return result;
+*/
+	return result;
 }
 
 
