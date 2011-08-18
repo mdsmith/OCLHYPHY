@@ -1116,7 +1116,6 @@ double _OCLEvaluator::oclmain(void)
             sizeof(cl_float)*siteCount, result_cache, 0,
             NULL, NULL);
 
-/*
 	ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
 			sizeof(cl_float)*flatNodes.lLength*siteCount*roundCharacters, node_cache, 0,
 			NULL,NULL);
@@ -1128,6 +1127,7 @@ double _OCLEvaluator::oclmain(void)
             sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
             NULL, NULL);
 
+/*
 	printf("ResultCache: ");
 	for (int i = 0; i < siteCount; i++)
 	{
@@ -1142,6 +1142,7 @@ double _OCLEvaluator::oclmain(void)
 	}
 	printf("\n");
 
+*/
 	for (int i = 0; i < (flatNodes.lLength); i++)
 	{
 		printf("NEWNODE");
@@ -1155,7 +1156,6 @@ double _OCLEvaluator::oclmain(void)
 		}
 	}
 	printf("\n");
-*/
 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1182,7 +1182,6 @@ double _OCLEvaluator::oclmain(void)
     
     clFinish(cqCommandQueue);
 
-/*
 	int* rootScalings = root_scalings;
 	double rootVals[alphabetDimension*siteCount];
 
@@ -1214,7 +1213,7 @@ double _OCLEvaluator::oclmain(void)
 		for (int p = 0; p < alphabetDimension; p++)
 		{
 			accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
-	//		printf("%g ", rootVals[siteID*alphabetDimension+p]);
+			//printf("%g ", rootVals[siteID*alphabetDimension+p]);
 		}
 	//	printf("\n");
 		resultList[siteID] = log(accumulator) * theFrequencies[siteID];
@@ -1232,7 +1231,6 @@ double _OCLEvaluator::oclmain(void)
 		result += resultList[i];
 	}
 	
-*/
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
 	queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
