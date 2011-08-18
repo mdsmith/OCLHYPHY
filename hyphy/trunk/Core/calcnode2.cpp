@@ -391,6 +391,20 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                 // shift the position in childvector to the next site
         }
     }
+
+	for (int i = 0; i < (flatNodes.lLength); i++)
+	{
+		printf("NEWNODE");
+		for (int k = 0; k < siteCount; k++)
+		{
+			for (int j = 0; j < alphabetDimension; j++)
+			{
+				printf(" %g", (double)(iNodeCache)[i*alphabetDimension*siteCount + k*alphabetDimension + j]);
+			}
+			printf("\n");
+		}
+	}
+	printf("\n");
         
 /*
 	printf("iNodeCache: ");
