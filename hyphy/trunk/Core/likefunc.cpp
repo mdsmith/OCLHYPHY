@@ -3940,6 +3940,10 @@ void			_LikelihoodFunction::SetupLFCaches				(void)
 		// TODO: setup context and iNodeCount array
 #ifdef MDSOCL
 		printf("Creating the OCLEval Context\n");
+		//printf("From init: \n");
+		//for (int i = 0; i < iNodeCount*patternCount*stateSpaceDim; i++)
+			//printf("%g ", conditionalInternalNodeLikelihoodCaches[i]); 
+		//printf("\n");
 		OCLEval[i].init(patternCount, theFilter->GetDimension(), conditionalInternalNodeLikelihoodCaches[i]);
 #endif
 

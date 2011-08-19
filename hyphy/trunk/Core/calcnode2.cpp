@@ -271,6 +271,8 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
                                                         
 					siteCount			  =			theFilter->NumberDistinctSites();
                         // how many unique sites are there
+	printf("siteCount: %i\n", siteCount);
+	printf("nodeCount: %i\n", updateNodes.lLength);
 
     // The root node stuff can be done here, in place, assuming the GPU code returns (probably via pointer), the resulting array. 
 //    _Parameter  * rootConditionals = iNodeCache + alphabetDimension * ((flatTree.lLength-1)  * siteCount),
@@ -294,6 +296,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
     }
     printf("\n");
 */
+	int tempSiteNumber = 0;
 	
 	for  (long nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
 	{
@@ -392,6 +395,7 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
         }
     }
 
+/*
 	for (int i = 0; i < (flatNodes.lLength); i++)
 	{
 		printf("NEWNODE");
@@ -406,7 +410,6 @@ _Parameter  _TheTree::VerySimpleLikelihoodEvaluator   (_SimpleList&		     update
 	}
 	printf("\n");
         
-/*
 	printf("iNodeCache: ");
 	for (int i = 0; i < (flatNodes.lLength)*alphabetDimension*siteCount; i++)
 	{

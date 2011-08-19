@@ -141,7 +141,7 @@ int _OCLEvaluator::setupContext(void)
     //printf("Made it to the oclmain() function!\n");
 
     //long nodeResCount = sizeof(lNodeResolutions->theData)/sizeof(lNodeResolutions->theData[0]);
-    long nodeFlagCount = updateNodes.lLength*siteCount;
+    long nodeFlagCount = flatLeaves.lLength*siteCount;
     long nodeResCount = lNodeResolutions->GetUsed();
 	int roundCharacters = roundUpToNextPowerOfTwo(alphabetDimension);
 //    long nodeCount = flatLeaves.lLength + flatNodes.lLength + 1;
@@ -174,13 +174,14 @@ int _OCLEvaluator::setupContext(void)
     //printf("setup the model, fixed tagged internals!\n");
 //    printf("flatleaves: %i\n", flatLeaves.lLength);
 //    printf("flatParents: %i\n", flatParents.lLength);
-//    printf("flatCleaves: %i\n", flatCLeaves.lLength);
+    //printf("flatCleaves: %i\n", flatCLeaves.lLength);
 //    printf("flatNodes: %i\n", flatNodes.lLength);
-//    printf("updateNodes: %i\n", updateNodes.lLength);
+    //printf("updateNodes: %i\n", updateNodes.lLength);
 //    printf("flatTree: %i\n", flatTree.lLength);
 
     //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
-//	printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
+	//printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
+	//printf("NodeCache: \n");
 	int alphaI = 0;
     for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
     {
@@ -188,6 +189,7 @@ int _OCLEvaluator::setupContext(void)
 		{
         	((float*)node_cache)[i] = (float)iNodeCache[alphaI];
 			alphaI++;
+			//printf("%g ", (float)iNodeCache[alphaI]);
 		}
 		else ((float*)node_cache)[i] = 0.0;
 //		double t = iNodeCache[i];        
@@ -195,7 +197,8 @@ int _OCLEvaluator::setupContext(void)
 //            printf("Got another one %g\n",t);
 		//printf ("%i\n",i);
     }
-	printf("Node resolutions: \n");
+		//printf("\n");
+	//printf("Node resolutions: \n");
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
           	((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
@@ -413,8 +416,10 @@ int _OCLEvaluator::setupContext(void)
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		node_cache[parentCharacterIndex] = privateParentScratch;																	\n" \
-	"		scalings[parentCharacterIndex] = scale;																						\n" \
+	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		//node_cache[parentCharacterIndex] = siteState;																			\n" \
+	"		//node_cache[parentCharacterIndex] = 1;																					\n" \
+	"		scalings[parentCharacterIndex] = scale;																					\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -574,6 +579,7 @@ int _OCLEvaluator::setupContext(void)
 	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
 	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
 	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
+	"		//node_cache	 [parentCharacterIndex]  = sum;															\n" \
 	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
@@ -1021,7 +1027,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
-	//			printf("Leaf!\n");
+				//printf("Leaf!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
@@ -1033,7 +1039,7 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
-	//			printf("ambig!\n");
+				//printf("ambig!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
@@ -1053,7 +1059,7 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
 											szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 
-	//		printf("internal!\n");
+			//printf("internal!\n");
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
         if (ciErr1 != CL_SUCCESS)
@@ -1142,7 +1148,6 @@ double _OCLEvaluator::oclmain(void)
 	}
 	printf("\n");
 
-*/
 	for (int i = 0; i < (flatNodes.lLength); i++)
 	{
 		printf("NEWNODE");
@@ -1156,6 +1161,7 @@ double _OCLEvaluator::oclmain(void)
 		}
 	}
 	printf("\n");
+*/
 
     if (ciErr1 != CL_SUCCESS)
     {
