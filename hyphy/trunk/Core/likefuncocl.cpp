@@ -109,7 +109,7 @@ _SimpleList taggedInternals;
 _GrowingVector* lNodeResolutions;
 float scalar;
 
-void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache, *prob_cache, *freq_cache, *root_cache, *result_cache, *root_scalings, *model;
+void *node_cache, *nodRes_cache, *nodFlag_cache, *scalings_cache, *prob_cache, *freq_cache, *root_cache, *result_cache, *root_scalings, *model, *smallModel;
 
 void _OCLEvaluator::init(	long esiteCount,
 									long ealphabetDimension,
@@ -169,6 +169,7 @@ int _OCLEvaluator::setupContext(void)
 	root_scalings 	= (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
 	result_cache 	= (void*)malloc(sizeof(cl_float)*siteCount);
 	model 			= (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength);
+	smallModel 		= (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters);
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -410,7 +411,8 @@ int _OCLEvaluator::setupContext(void)
     "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
-	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + gx*roundCharacters + siteState];						\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
@@ -482,7 +484,7 @@ int _OCLEvaluator::setupContext(void)
 	"			else																												\n" \
 	"				childScratch[ty][tx] = 0;																						\n" \
 	"		}																														\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*gx + ((charBlock*BLOCK_SIZE)+ty)];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
@@ -553,7 +555,7 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		childScratch[ty][tx] = 																									\n" \
 	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];				\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*gx + ((charBlock*BLOCK_SIZE)+ty)];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
@@ -957,7 +959,7 @@ double _OCLEvaluator::oclmain(void)
 	bool isLeaf;
 	_Parameter* tMatrix;
 	int a1, a2;
-	//#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
+	/*#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
     for (int nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
         nodeCode = updateNodes.lData[nodeID];
@@ -979,13 +981,13 @@ double _OCLEvaluator::oclmain(void)
             }
         }
 	}
-	
 	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
 	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
                 sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
 	clFinish(cqCommandQueue);
+	*/
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -1006,6 +1008,34 @@ double _OCLEvaluator::oclmain(void)
 				parentCode = flatParents.lData[nodeCode];
 
         bool isLeaf = nodeCode < flatLeaves.lLength;
+
+        if (!isLeaf) nodeCode -= flatLeaves.lLength;
+
+		tMatrix = (isLeaf? ((_CalcNode*) flatCLeaves (nodeCode)):
+                   ((_CalcNode*) flatTree    (nodeCode)))->GetCompExp(0)->theData;
+		
+#ifdef __OCLPOSIX__
+	clock_gettime(CLOCK_MONOTONIC, &bufferStart);
+#endif
+        for (a1 = 0; a1 < alphabetDimension; a1++)
+        {
+            for (a2 = 0; a2 < alphabetDimension; a2++)
+            {
+                ((float*)smallModel)[a1*roundCharacters+a2] =
+                   (float)(tMatrix[a1*alphabetDimension+a2]);
+            }
+        }
+
+    	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, nodeIndex*roundCharacters*roundCharacters*sizeof(cl_float),
+                sizeof(cl_float)*roundCharacters*roundCharacters,
+                smallModel, 0, NULL, NULL);
+
+#ifdef __OCLPOSIX__
+	clock_gettime(CLOCK_MONOTONIC, &bufferEnd);
+	buffSecs += (bufferEnd.tv_sec - bufferStart.tv_sec)+(bufferEnd.tv_nsec - bufferStart.tv_nsec)/BILLION;
+
+	clock_gettime(CLOCK_MONOTONIC, &queueStart);
+#endif
 
 		if (isLeaf)
 		{
@@ -1046,7 +1076,7 @@ double _OCLEvaluator::oclmain(void)
 		else
 		{	
 			long tempLeafState = 0;
-			nodeCode -= flatLeaves.lLength;
+			//nodeCode -= flatLeaves.lLength;
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
