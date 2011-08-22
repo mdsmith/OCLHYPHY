@@ -185,6 +185,7 @@ int _OCLEvaluator::setupContext(void)
 	int alphaI = 0;
     for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
     {
+		((int*)scalings_cache)[i] = 0.;
 		if (i%(roundCharacters) < alphabetDimension)
 		{
         	((float*)node_cache)[i] = (float)iNodeCache[alphaI];
@@ -204,10 +205,6 @@ int _OCLEvaluator::setupContext(void)
           	((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
 	for (int i = 0; i < nodeFlagCount; i++)
 		((long*)nodFlag_cache)[i] = lNodeFlags[i];
-	for (int i = 0; i < roundCharacters*siteCount*(flatNodes.lLength); i++)
-		((int*)scalings_cache)[i] = 0.;
-	for (int i = 0; i < siteCount; i++)
-		((int*)freq_cache)[i] = theFrequencies[i];
 	for (int i = 0; i < siteCount; i++)
 		((int*)freq_cache)[i] = theFrequencies[i];
 	for (int i = 0; i < alphabetDimension; i++)
@@ -721,6 +718,7 @@ int _OCLEvaluator::setupContext(void)
         Cleanup(EXIT_FAILURE);
     }
 
+    //ciErr1 = clBuildProgram(cpResultProgram, 1, &cdDevice, NULL, NULL, NULL);
     ciErr1 = clBuildProgram(cpResultProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
     {
@@ -959,7 +957,7 @@ double _OCLEvaluator::oclmain(void)
 	bool isLeaf;
 	_Parameter* tMatrix;
 	int a1, a2;
-	#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
+	//#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
     for (int nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
         nodeCode = updateNodes.lData[nodeID];
@@ -1122,6 +1120,7 @@ double _OCLEvaluator::oclmain(void)
             sizeof(cl_float)*siteCount, result_cache, 0,
             NULL, NULL);
 
+/*
 	ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
 			sizeof(cl_float)*flatNodes.lLength*siteCount*roundCharacters, node_cache, 0,
 			NULL,NULL);
@@ -1133,7 +1132,6 @@ double _OCLEvaluator::oclmain(void)
             sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
             NULL, NULL);
 
-/*
 	printf("ResultCache: ");
 	for (int i = 0; i < siteCount; i++)
 	{
@@ -1187,7 +1185,7 @@ double _OCLEvaluator::oclmain(void)
     
     
     clFinish(cqCommandQueue);
-
+/*
 	int* rootScalings = root_scalings;
 	double rootVals[alphabetDimension*siteCount];
 
@@ -1236,6 +1234,7 @@ double _OCLEvaluator::oclmain(void)
 	{
 		result += resultList[i];
 	}
+	*/
 	
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &queueEnd);
@@ -1243,7 +1242,7 @@ double _OCLEvaluator::oclmain(void)
 	clock_gettime(CLOCK_MONOTONIC, &mainStart);
 #endif
 	double oResult = 0.0;
-	#pragma omp parallel for reduction (+:oResult) schedule(static)
+	//#pragma omp parallel for reduction (+:oResult) schedule(static)
 	for (int i = 0; i < siteCount; i++)
 	{
 		oResult += ((float*)result_cache)[i];
