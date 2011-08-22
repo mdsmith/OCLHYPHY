@@ -410,7 +410,8 @@ int _OCLEvaluator::setupContext(void)
     "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
-	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + gx*roundCharacters + siteState];						\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
@@ -482,7 +483,8 @@ int _OCLEvaluator::setupContext(void)
 	"			else																												\n" \
 	"				childScratch[ty][tx] = 0;																						\n" \
 	"		}																														\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		//modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*gx + ((charBlock*BLOCK_SIZE)+ty)];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
@@ -553,7 +555,8 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		childScratch[ty][tx] = 																									\n" \
 	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];				\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		//modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*gx + ((charBlock*BLOCK_SIZE)+ty)];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
@@ -974,7 +977,7 @@ double _OCLEvaluator::oclmain(void)
         {
             for (a2 = 0; a2 < alphabetDimension; a2++)
             {
-                ((float*)model)[nodeID*roundCharacters*roundCharacters+a2*roundCharacters+a1] =
+                ((float*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
                    (float)(tMatrix[a1*alphabetDimension+a2]);
             }
         }
