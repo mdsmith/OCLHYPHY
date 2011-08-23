@@ -979,16 +979,19 @@ double _OCLEvaluator::oclmain(void)
             {
                 ((float*)model)[nodeID*roundCharacters*roundCharacters+a1*roundCharacters+a2] =
                    (float)(tMatrix[a1*alphabetDimension+a2]);
+				//printf("%g ", ((float*)model)[nodeID*roundCharacters*roundCharacters + a1*alphabetDimension+a2]);
             }
+			//printf("\n");
         }
+		//printf("\n");
 	}
+	//printf("\n");
 	
 	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
 	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, 0,
                 sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
-	clFinish(cqCommandQueue);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
@@ -1283,11 +1286,11 @@ double _OCLEvaluator::launchmdsocl(	_SimpleList& eupdateNodes,
 
 	if (!contextSet)
 	{
+		flatCLeaves = eflatCLeaves;
+		flatTree = eflatTree;
 		theProbs = etheProbs;
 		flatNodes = eflatNodes;
-		flatCLeaves = eflatCLeaves;
 		flatLeaves = eflatLeaves;
-		flatTree = eflatTree;
     	flatParents = eflatParents;
 		lNodeFlags = elNodeFlags;
 		lNodeResolutions = elNodeResolutions;
