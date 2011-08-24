@@ -172,23 +172,25 @@ int _OCLEvaluator::setupContext(void)
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
-//    printf("flatleaves: %i\n", flatLeaves.lLength);
-//    printf("flatParents: %i\n", flatParents.lLength);
-    //printf("flatCleaves: %i\n", flatCLeaves.lLength);
-//    printf("flatNodes: %i\n", flatNodes.lLength);
+    //printf("flatleaves: %i\n", flatLeaves.lLength);
+    //printf("flatParents: %i\n", flatParents.lLength);
+   	//printf("flatCleaves: %i\n", flatCLeaves.lLength);
+    //printf("flatNodes: %i\n", flatNodes.lLength);
     //printf("updateNodes: %i\n", updateNodes.lLength);
-//    printf("flatTree: %i\n", flatTree.lLength);
+    //printf("flatTree: %i\n", flatTree.lLength);
 
     //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
 	//printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
 	//printf("NodeCache: \n");
+/*
 	int alphaI = 0;
     for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
     {
 		((int*)scalings_cache)[i] = 0.;
 		if (i%(roundCharacters) < alphabetDimension)
 		{
-        	((float*)node_cache)[i] = (float)iNodeCache[alphaI];
+        	//((float*)node_cache)[i] = (float)iNodeCache[alphaI];
+        	((float*)node_cache)[i] = 0.0;
 			alphaI++;
 			//printf("%g ", (float)iNodeCache[alphaI]);
 		}
@@ -198,6 +200,7 @@ int _OCLEvaluator::setupContext(void)
 //            printf("Got another one %g\n",t);
 		//printf ("%i\n",i);
     }
+*/
 		//printf("\n");
 	//printf("Node resolutions: \n");
     if (ambiguousNodes)
@@ -306,8 +309,11 @@ int _OCLEvaluator::setupContext(void)
 
     // Allocate the OpenCL buffer memory objects for the input and output on the
     // device GMEM
-    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
-                    sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
+    //cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+     //               sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
+      //              &ciErr1);
+    cmNode_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE,
+                    sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, NULL,
                     &ciErr1);
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength, 
@@ -401,7 +407,7 @@ int _OCLEvaluator::setupContext(void)
 	"{																														    	\n" \
     "   int gx = get_global_id(0); // pchar																						 	\n" \
     "   int gy = get_global_id(1); // site																					    	\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 					            \n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 					            \n" \
     "   float privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 						        																			    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -410,14 +416,14 @@ int _OCLEvaluator::setupContext(void)
     "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
-	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];					\n" \
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + gx*roundCharacters + siteState];						\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
-	"		//node_cache[parentCharacterIndex] = siteState;																			\n" \
-	"		//node_cache[parentCharacterIndex] = 1;																					\n" \
-	"		scalings[parentCharacterIndex] = scale;																					\n" \
+	"		//node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		node_cache[parentCharacterIndex] = (float)parentCharacterIndex;																\n" \
+	"		//scalings[parentCharacterIndex] = scale;																					\n" \
+	"		scalings[parentCharacterIndex] = parentCharacterIndex;																	\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -449,7 +455,7 @@ int _OCLEvaluator::setupContext(void)
 	"   // global index 																											\n" \
 	"	int gx = get_global_id(0);																									\n" \
 	"	int gy = get_global_id(1);																									\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   float privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 		        																							    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -459,8 +465,7 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	float sum = 0.;																												\n" \
 	"	float childSum = 0.;																										\n" \
-	"	//int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
-	"	//int scaleScratch = 0;								\n" \
+	"	int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
 	"	__local float childScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
 	"	__local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
 	"	int siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
@@ -494,20 +499,18 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	/*																															\n" \
 	"	while (childSum < 1 && childSum != 0)																						\n" \
 	"	{																															\n" \
 	"		childSum *= scalar;																										\n" \
 	"		sum *= scalar;																											\n" \
 	"		scaleScratch++;																											\n" \
 	"	}																															\n" \
-	"	*/																															\n" \
-	"	//scale += scaleScratch;																										\n" \
+	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
-	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
+	"		//node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -576,10 +579,11 @@ int _OCLEvaluator::setupContext(void)
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
+	"		//scalings	 [parentCharacterIndex]	 = scale;																			\n" \
+	"		scalings	 [parentCharacterIndex]	 = parentCharacterIndex;																			\n" \
 	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
-	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
-	"		//node_cache	 [parentCharacterIndex]  = sum;															\n" \
+	"		//node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
+	"		node_cache	 [parentCharacterIndex]  = (float)parentCharacterIndex;															\n" \
 	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
@@ -901,12 +905,11 @@ int _OCLEvaluator::setupContext(void)
     // --------------------------------------------------------
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
-/*
     ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-                sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
+                sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
 
-
+/*
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, 0, NULL, NULL);
 
