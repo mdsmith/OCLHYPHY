@@ -172,18 +172,20 @@ int _OCLEvaluator::setupContext(void)
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
-//    printf("flatleaves: %i\n", flatLeaves.lLength);
-//    printf("flatParents: %i\n", flatParents.lLength);
+    //printf("flatleaves: %i\n", flatLeaves.lLength);
+    //printf("flatParents: %i\n", flatParents.lLength);
     //printf("flatCleaves: %i\n", flatCLeaves.lLength);
-//    printf("flatNodes: %i\n", flatNodes.lLength);
+    //printf("flatNodes: %i\n", flatNodes.lLength);
     //printf("updateNodes: %i\n", updateNodes.lLength);
-//    printf("flatTree: %i\n", flatTree.lLength);
+    //printf("flatTree: %i\n", flatTree.lLength);
+    //printf("nodeFlagCount: %i\n", nodeFlagCount);
+    //printf("nodeResCount: %i\n", nodeResCount);
 
     //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
-	//printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
+	printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
 	//printf("NodeCache: \n");
 	int alphaI = 0;
-    for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
+    for (long i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
     {
 		((int*)scalings_cache)[i] = 0.;
 		if (i%(roundCharacters) < alphabetDimension)
@@ -401,7 +403,7 @@ int _OCLEvaluator::setupContext(void)
 	"{																														    	\n" \
     "   int gx = get_global_id(0); // pchar																						 	\n" \
     "   int gy = get_global_id(1); // site																					    	\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 					            \n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 					            \n" \
     "   float privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 						        																			    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -448,7 +450,7 @@ int _OCLEvaluator::setupContext(void)
 	"   // global index 																											\n" \
 	"	int gx = get_global_id(0);																									\n" \
 	"	int gy = get_global_id(1);																									\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   float privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 		        																							    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -458,8 +460,7 @@ int _OCLEvaluator::setupContext(void)
 	"	}																															\n" \
 	"	float sum = 0.;																												\n" \
 	"	float childSum = 0.;																										\n" \
-	"	//int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
-	"	//int scaleScratch = 0;								\n" \
+	"	int scaleScratch = 0;								\n" \
 	"	__local float childScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
 	"	__local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];																			\n" \
 	"	int siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
@@ -492,15 +493,13 @@ int _OCLEvaluator::setupContext(void)
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		cChar += BLOCK_SIZE;																									\n" \
 	"	}																															\n" \
-	"	/*																															\n" \
 	"	while (childSum < 1 && childSum != 0)																						\n" \
 	"	{																															\n" \
 	"		childSum *= scalar;																										\n" \
 	"		sum *= scalar;																											\n" \
 	"		scaleScratch++;																											\n" \
 	"	}																															\n" \
-	"	*/																															\n" \
-	"	//scale += scaleScratch;																										\n" \
+	"	scale += scaleScratch;																										\n" \
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
@@ -535,7 +534,7 @@ int _OCLEvaluator::setupContext(void)
 	"   // global index 																											\n" \
 	"	int gx = get_global_id(0);																									\n" \
 	"	int gy = get_global_id(1);																									\n" \
-    "   int parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 								\n" \
     "   float privateParentScratch = 1.0; 		        																		    \n" \
     "   int scale = 0; 		        																							    \n" \
 	"	if (intTagState == 1) 																										\n" \
@@ -576,7 +575,6 @@ int _OCLEvaluator::setupContext(void)
 	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
 	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
 	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
-	"		//node_cache	 [parentCharacterIndex]  = sum;															\n" \
 	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
@@ -1011,7 +1009,7 @@ double _OCLEvaluator::oclmain(void)
 		{
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
-			int ambig = 0;
+			/*int ambig = 0;
 			for (int aI = 0; aI < siteCount; aI++)
 				if (lNodeFlags[nodeCode*siteCount + aI] < 0) 
 					{
@@ -1030,7 +1028,7 @@ double _OCLEvaluator::oclmain(void)
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
 			else
-			{
+			{*/
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 7, sizeof(cl_long), (void*)&parentCode);
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
@@ -1040,7 +1038,7 @@ double _OCLEvaluator::oclmain(void)
 				//printf("ambig!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
-			}
+			//}
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
 		else
