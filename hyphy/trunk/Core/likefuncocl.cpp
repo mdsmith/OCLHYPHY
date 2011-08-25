@@ -387,8 +387,6 @@ int _OCLEvaluator::setupContext(void)
 //	"" FLOATPREC                                                                                                                        \
     // Create the program
 	const char *leaf_source = "\n" \
-	" #define BLOCK_SIZE 16																											\n" \
-	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
 	"__kernel void LeafKernel(	__global float* node_cache, 				// argument 0											\n" \
 	"							__global const float* model, 				// argument 1											\n" \
 	"							__global const float* nodRes_cache,   		// argument 2										 	\n" \
@@ -402,11 +400,9 @@ int _OCLEvaluator::setupContext(void)
 	"							long nodeID,								// argument 10											\n" \
 	"							__global int* scalings, 					// argument 11											\n" \
 	"							float scalar, 								// argument 12											\n" \
-	"							float uFlowThresh,							// argument 13											\n" \
-	"							__global float* root_cache					// argument 14										\n" \
+	"							float uFlowThresh							// argument 13											\n" \
 	"							) 				 																					\n" \
 	"{																														    	\n" \
-	"	node_cache	 [0]  = 1.;															\n" \
     "   int gx = get_global_id(0); // pchar																						 	\n" \
     "   int gy = get_global_id(1); // site																					    	\n" \
     "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx; 					            \n" \
@@ -422,11 +418,8 @@ int _OCLEvaluator::setupContext(void)
 	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + gx*roundCharacters + siteState];						\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		//node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
-	"		root_cache[gy*roundCharacters+gx] = gy*roundCharacters+gx;																\n" \
-	"		//node_cache[parentCharacterIndex] = (float)parentNodeIndex;																\n" \
-	"		//scalings[parentCharacterIndex] = scale;																					\n" \
-	"		scalings[parentCharacterIndex] = parentCharacterIndex;																	\n" \
+	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
+	"		scalings[parentCharacterIndex] = scale;																					\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -483,7 +476,7 @@ int _OCLEvaluator::setupContext(void)
 	"	{																															\n" \
 	"		if (ambig)																												\n" \
 	"			childScratch[ty][tx] = 																								\n" \
-	"				nodRes_cache[siteState*characters + (charBlock*BLOCK_SIZE) + tx]; // could it be this ty selection switch?	\n" \
+	"				nodRes_cache[siteState*characters + (charBlock*BLOCK_SIZE) + tx]; 												\n" \
 	"		else																													\n" \
 	"		{																														\n" \
 	"			if (charBlock*BLOCK_SIZE + tx == siteState)																			\n" \
@@ -513,7 +506,7 @@ int _OCLEvaluator::setupContext(void)
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		scalings	[parentCharacterIndex]	= scale;																			\n" \
-	"		//node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
+	"		node_cache	[parentCharacterIndex] 	= privateParentScratch;																\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -582,12 +575,10 @@ int _OCLEvaluator::setupContext(void)
 	"	privateParentScratch *= sum;																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
-	"		//scalings	 [parentCharacterIndex]	 = scale;																			\n" \
-	"		scalings	 [parentCharacterIndex]	 = parentCharacterIndex;																			\n" \
+	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
 	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
-	"		//node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
-	"		node_cache	 [parentCharacterIndex]  = (float)sites;															\n" \
-	"		//root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
+	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
+	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -609,9 +600,7 @@ int _OCLEvaluator::setupContext(void)
 	"	float acc = 0.0;																											\n" \
 	"	int scale = root_scalings[site*roundCharacters];																			\n" \
 	"	for (int rChar = 0; rChar < characters; rChar++)																			\n" \
-	"	{																															\n" \
 	"		acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];													\n" \
-	"	}																															\n" \
 	"	if (site < sites)																											\n" \
 	"		result_cache[site] = (log(acc)-scale*log(scalar)) * freq_cache[site];													\n" \
 	"}																																\n" \
@@ -855,7 +844,6 @@ int _OCLEvaluator::setupContext(void)
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 12, sizeof(cl_float), (void*)&tempScalar);
 	ciErr1 |= clSetKernelArg(ckLeafKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
-	ciErr1 |= clSetKernelArg(ckLeafKernel, 14, sizeof(cl_mem), (void*)&cmroot_cache);
 
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
 	ciErr1 |= clSetKernelArg(ckAmbigKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
@@ -1031,6 +1019,7 @@ double _OCLEvaluator::oclmain(void)
 						ambig = 1;
 					}
 			if (!ambig)
+			//if (ambig)
 			{	
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 7, sizeof(cl_long), (void*)&parentCode);
