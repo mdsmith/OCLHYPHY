@@ -181,7 +181,7 @@ then
         echo "+----------------------------------------------------------------------+"
         echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
         echo "+----------------------------------------------------------------------+"
-        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D NVIDIA -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc -lOpenCL "
+        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D NVIDIA -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc "
 	elif [ $gpuType = "AMD" ]
     then
         TARGET_NAME="HYPHYMP";
@@ -190,7 +190,7 @@ then
         echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
         echo "+----------------------------------------------------------------------+"
         #COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D MDSOCL"
-        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D AMD -I/home/mdsmith/AMD-APP-SDK-v2.4-lnx64/include -I/home/mdsmith/AMD-APP-SDK-v2.4-lnx64/samples/opencl/SDKUtil/include -lOpenCL "
+        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D AMD -I/home/mdsmith/AMD-APP-SDK-v2.4-lnx64/include -I/home/mdsmith/AMD-APP-SDK-v2.4-lnx64/samples/opencl/SDKUtil/include "
     elif [ $gpuType = "NVIDIA" ]
     then
         TARGET_NAME="HYPHYMP";
@@ -199,7 +199,7 @@ then
         echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
         echo "+----------------------------------------------------------------------+"
         #COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D MDSOCL"
-        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D NVIDIA -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc -lOpenCL "
+        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D NVIDIA -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc  "
     else
         1="MP2";
     fi

@@ -238,6 +238,7 @@ int _OCLEvaluator::setupContext(void)
     
     //Get the devices
 	ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &cdDevice, NULL);
+	//ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &cdDevice, NULL);
  //   printf("clGetDeviceIDs...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -270,6 +271,7 @@ int _OCLEvaluator::setupContext(void)
     szLocalWorkSize[1] = 16;
     szGlobalWorkSize[0] = 64;
     szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
+    //szGlobalWorkSize[1] = roundUpToNextPowerOfTwo(siteCount);
     printf("Global Work Size \t\t= %d, %d\nLocal Work Size \t\t= %d, %d\n# of Work Groups \t\t= %d\n\n", 
            szGlobalWorkSize[0], szGlobalWorkSize[1], szLocalWorkSize[0], szLocalWorkSize[1], 
            ((szGlobalWorkSize[0]*szGlobalWorkSize[1])/(szLocalWorkSize[0]*szLocalWorkSize[1]))); 
@@ -896,19 +898,19 @@ int _OCLEvaluator::setupContext(void)
     // --------------------------------------------------------
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
-/*
     ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
 
+/*
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
                 sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, 0, NULL, NULL);
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
                 sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, 0, NULL, NULL);
-	
  */   
+	
 	for (int i = 0; i < siteCount; i++)
 		((float*)result_cache)[i] = 0.0;
 	ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
@@ -986,9 +988,31 @@ double _OCLEvaluator::oclmain(void)
 	clFinish(cqCommandQueue);
     if (ciErr1 != CL_SUCCESS)
     {
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_COMMAND_QUEUE: printf("CL_INVALID_COMMAND_QUEUE\n"); break;
+            case   CL_INVALID_CONTEXT: printf("CL_INVALID_CONTEXT\n"); break;
+            case   CL_INVALID_MEM_OBJECT: printf("CL_INVALID_MEM_OBJECT\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;   
+            case   CL_INVALID_EVENT_WAIT_LIST: printf("CL_INVALID_EVENT_WAIT_LIST\n"); break;
+                //          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_MISALIGNED_SUB_BUFFER_OFFSET\n"); break;
+                //          case   CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: printf("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST\n"); break;
+            case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break;
+            case   CL_OUT_OF_RESOURCES: printf("CL_OUT_OF_RESOURCES\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
         printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+	/*
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+	*/
 #ifdef __OCLPOSIX__
 	clock_gettime(CLOCK_MONOTONIC, &bufferEnd);
 	buffSecs += (bufferEnd.tv_sec - bufferStart.tv_sec)+(bufferEnd.tv_nsec - bufferStart.tv_nsec)/BILLION;
@@ -1085,7 +1109,7 @@ double _OCLEvaluator::oclmain(void)
         }
     }
 	ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
-									szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
+		szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
    
 	if (ciErr1 != CL_SUCCESS)
 	{
