@@ -53,6 +53,13 @@ typedef cl_float clfp;
 #define PRAGMADEF " \n"
 #endif
 
+//#define OCLGPU
+#ifdef OCLGPU
+#define OCLTARGET " #define BLOCK_SIZE 16 \n" 
+#else
+#define OCLTARGET " #define BLOCK_SIZE 1 \n"
+#endif
+
 #define MIN(a,b) ((a)>(b)?(b):(a))
 
 // time stuff:
@@ -235,10 +242,14 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clGetPlatformID, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+	
     
     //Get the devices
+#ifdef OCLGPU
 	ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_GPU, 1, &cdDevice, NULL);
-	//ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &cdDevice, NULL);
+#else
+	ciErr1 = clGetDeviceIDs(cpPlatform, CL_DEVICE_TYPE_CPU, 1, &cdDevice, NULL);
+#endif
  //   printf("clGetDeviceIDs...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -267,8 +278,13 @@ int _OCLEvaluator::setupContext(void)
     
     // set and log Global and Local work size dimensions
     
+#ifdef OCLGPU
     szLocalWorkSize[0] = 16; // All of these will have to be generalized. 
     szLocalWorkSize[1] = 16;
+#else
+    szLocalWorkSize[0] = 1; // All of these will have to be generalized. 
+    szLocalWorkSize[1] = 1;
+#endif
     szGlobalWorkSize[0] = 64;
     szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
     //szGlobalWorkSize[1] = roundUpToNextPowerOfTwo(siteCount);
@@ -385,8 +401,6 @@ int _OCLEvaluator::setupContext(void)
 //	"" FLOATPREC                                                                                                                        \
     // Create the program
 	const char *leaf_source = "\n" \
-	" #define BLOCK_SIZE 16																											\n" \
-	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
 	"__kernel void LeafKernel(	__global float* node_cache, 				// argument 0											\n" \
 	"							__global const float* model, 				// argument 1											\n" \
 	"							__global const float* nodRes_cache,   		// argument 2										 	\n" \
@@ -414,18 +428,18 @@ int _OCLEvaluator::setupContext(void)
     "   	scale = scalings[parentCharacterIndex]; 			        														    \n" \
 	"	}																															\n" \
 	"	long siteState = nodFlag_cache[childNodeIndex*sites + gy];																	\n" \
-	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];						\n" \
+	"	//privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];					\n" \
+	// TODO: As soon as I add in nodeID to the following line it breaks on the CPU. Is it an issue with nodeID or with the size of model?
+	"	privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];					\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		node_cache[parentCharacterIndex] = privateParentScratch;																\n" \
-	"		//node_cache[parentCharacterIndex] = siteState;																			\n" \
-	"		//node_cache[parentCharacterIndex] = 1;																					\n" \
 	"		scalings[parentCharacterIndex] = scale;																					\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
 	const char *ambig_source = "\n" \
-	" #define BLOCK_SIZE 16																											\n" \
+	"" OCLTARGET																														\
 	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
 	"__kernel void AmbigKernel(		__global float* node_cache, 				// argument 0										\n" \
 	"								__global const float* model, 				// argument 1										\n" \
@@ -473,7 +487,7 @@ int _OCLEvaluator::setupContext(void)
 	"		siteState = -siteState-1;																								\n" \
 	"	}																															\n" \
 	"	int cChar = 0;																												\n" \
-	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
+	"	for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)																			\n" \
 	"	{																															\n" \
 	"		if (ambig)																												\n" \
 	"			childScratch[ty][tx] = 																								\n" \
@@ -511,7 +525,7 @@ int _OCLEvaluator::setupContext(void)
 	"}																													    		\n" \
 	"\n";
 	const char *internal_source = "\n" \
-	" #define BLOCK_SIZE 16																											\n" \
+	"" OCLTARGET																														\
 	" #define MIN(a,b) ((a)>(b)?(b):(a))																							\n" \
 	"__kernel void InternalKernel(	__global float* node_cache, 				// argument 0										\n" \
 	"								__global const float* model, 				// argument 1										\n" \
@@ -550,11 +564,11 @@ int _OCLEvaluator::setupContext(void)
 	"	__local float  childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	__local float  modelScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
 	"	int cChar = 0;																												\n" \
-	"	for (int charBlock = 0; charBlock < 4; charBlock++)																			\n" \
+	"	for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)																\n" \
 	"	{																															\n" \
 	"		childScratch[ty][tx] = 																									\n" \
 	"			node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];				\n" \
-	"		modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+	"		//modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
 	"		barrier(CLK_LOCAL_MEM_FENCE);																							\n" \
 	"		for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)											\n" \
 	"		{																														\n" \
@@ -819,6 +833,20 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
+
+    size_t maxKernelSize;
+    ciErr1 = clGetKernelWorkGroupInfo(ckLeafKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+	printf("Max Leaf Kernel Work Group Size: %i \n", maxKernelSize);
+    ciErr1 = clGetKernelWorkGroupInfo(ckAmbigKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+	printf("Max Ambig Kernel Work Group Size: %i \n", maxKernelSize);
+    ciErr1 = clGetKernelWorkGroupInfo(ckInternalKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+	printf("Max Internal Kernel Work Group Size: %i \n", maxKernelSize);
+    ciErr1 = clGetKernelWorkGroupInfo(ckResultKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+	printf("Max Result Kernel Work Group Size: %i \n", maxKernelSize);
     
     long tempLeafState = 1;
     long tempSiteCount = siteCount;
@@ -982,7 +1010,7 @@ double _OCLEvaluator::oclmain(void)
 	
 	// enqueueing the read and write buffers takes 1/2 the time, the kernel takes the other 1/2.
 	// with no queueing, however, we still only see ~700lf/s, which isn't much better than the threaded CPU code.
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_FALSE, 0,
+    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, 0,
                 sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength,
                 model, 0, NULL, NULL);
 	clFinish(cqCommandQueue);
@@ -1023,7 +1051,7 @@ double _OCLEvaluator::oclmain(void)
     // Launch kernel
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
-
+		//printf("NewNode\n");
 		long 	nodeCode = updateNodes.lData[nodeIndex],
 				parentCode = flatParents.lData[nodeCode];
 
@@ -1033,7 +1061,7 @@ double _OCLEvaluator::oclmain(void)
 		{
 			long nodeCodeTemp = nodeCode;
 			int tempIntTagState = taggedInternals.lData[parentCode];
-			/*int ambig = 0;
+			int ambig = 0;
 			for (int aI = 0; aI < siteCount; aI++)
 				if (lNodeFlags[nodeCode*siteCount + aI] < 0) 
 					{
@@ -1047,12 +1075,12 @@ double _OCLEvaluator::oclmain(void)
 				ciErr1 |= clSetKernelArg(ckLeafKernel, 10, sizeof(cl_long), (void*)&nodeIndex);
 				taggedInternals.lData[parentCode] = 1;
 	
-				//printf("Leaf!\n");
+				printf("Leaf!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckLeafKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 			}
 			else
-			{*/
+			{
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 7, sizeof(cl_long), (void*)&parentCode);
 				ciErr1 |= clSetKernelArg(ckAmbigKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
@@ -1062,7 +1090,7 @@ double _OCLEvaluator::oclmain(void)
 				//printf("ambig!\n");
 				ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckAmbigKernel, 2, NULL, 
 												szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
-			//}
+			}
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
 		else
@@ -1079,7 +1107,7 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
 											szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 
-			//printf("internal!\n");
+			printf("internal!\n");
 			ciErr1 |= clFlush(cqCommandQueue);
 		}
         if (ciErr1 != CL_SUCCESS)
