@@ -175,7 +175,7 @@ int _OCLEvaluator::setupContext(void)
 	root_cache 		= (void*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
 	root_scalings 	= (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
 	result_cache 	= (void*)malloc(sizeof(cl_float)*siteCount);
-	model 			= (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*(updateNodes.lLength));
+	model 			= (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1));
 
     //printf("Allocated all of the arrays!\n");
     //printf("setup the model, fixed tagged internals!\n");
@@ -330,7 +330,7 @@ int _OCLEvaluator::setupContext(void)
                     sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache,
                     &ciErr1);
     cmModel_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
-                    sizeof(cl_float)*roundCharacters*roundCharacters*updateNodes.lLength, 
+                    sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1), 
                     NULL, &ciErr2);
     ciErr1 |= ciErr2;
 	cmScalings_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
@@ -554,9 +554,9 @@ int _OCLEvaluator::setupContext(void)
 	"	if (intTagState == 1) 																										\n" \
 	"	{																															\n" \
 	"		privateParentScratch = node_cache[parentCharacterIndex];																\n" \
-    "   	scale = scalings[parentCharacterIndex]; 		        															    \n" \
+    "   	//scale = scalings[parentCharacterIndex]; 		        															    \n" \
 	"	}																															\n" \
-	"	float sum = 0.;																												\n" \
+	"	/*float sum = 0.;																												\n" \
 	"	float childSum = 0.;																										\n" \
 	"	int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];								\n" \
 	"	__local float  childScratch[BLOCK_SIZE][BLOCK_SIZE];																		\n" \
@@ -583,13 +583,14 @@ int _OCLEvaluator::setupContext(void)
 	"		scaleScratch++;																											\n" \
 	"	}																															\n" \
 	"	scale += scaleScratch;																										\n" \
-	"	privateParentScratch *= sum;																								\n" \
+	"	privateParentScratch *= sum;*/																								\n" \
 	"	if (gy < sites && gx < characters) 																							\n" \
 	"	{																															\n" \
 	"		scalings	 [parentCharacterIndex]	 = scale;																			\n" \
 	"		root_scalings[gy*roundCharacters+gx] = scale;																			\n" \
 	"		node_cache	 [parentCharacterIndex]  = privateParentScratch;															\n" \
-	"		root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
+	"	//	node_cache	 [parentCharacterIndex]  = parentCharacterIndex;															\n" \
+	"	//	root_cache	 [gy*roundCharacters+gx] = privateParentScratch;															\n" \
 	"	}																															\n" \
 	"}																													    		\n" \
 	"\n";
@@ -615,7 +616,7 @@ int _OCLEvaluator::setupContext(void)
 	"		acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];													\n" \
 	"	}																															\n" \
 	"	if (site < sites)																											\n" \
-	"		result_cache[site] = (log(acc)-scale*log(scalar)) * freq_cache[site];													\n" \
+	"		result_cache[site] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];													\n" \
 	"}																																\n" \
 	"\n"; 
     
@@ -925,9 +926,29 @@ int _OCLEvaluator::setupContext(void)
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
     ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-                sizeof(clfp)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
+                sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
                 0, NULL, NULL);
 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("%i\n", ciErr1); //prints "1"
+        switch(ciErr1)
+        {
+            case   CL_INVALID_COMMAND_QUEUE: printf("CL_INVALID_COMMAND_QUEUE\n"); break;
+            case   CL_INVALID_CONTEXT: printf("CL_INVALID_CONTEXT\n"); break;
+            case   CL_INVALID_MEM_OBJECT: printf("CL_INVALID_MEM_OBJECT\n"); break;
+            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;   
+            case   CL_INVALID_EVENT_WAIT_LIST: printf("CL_INVALID_EVENT_WAIT_LIST\n"); break;
+                //          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_MISALIGNED_SUB_BUFFER_OFFSET\n"); break;
+                //          case   CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: printf("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST\n"); break;
+            case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break;
+            case   CL_OUT_OF_RESOURCES: printf("CL_OUT_OF_RESOURCES\n"); break;
+            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
+            default: printf("Strange error\n"); //This is printed
+        }
+        printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
 /*
 
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
@@ -985,6 +1006,7 @@ double _OCLEvaluator::oclmain(void)
 	bool isLeaf;
 	_Parameter* tMatrix;
 	int a1, a2;
+	//printf("updateNodes.lLength: %i", updateNodes.lLength);
 	//#pragma omp parallel for default(none) shared(updateNodes, flatParents, flatLeaves, flatCLeaves, flatTree, alphabetDimension, model, roundCharacters) private(nodeCode, parentCode, isLeaf, tMatrix, a1, a2)
     for (int nodeID = 0; nodeID < updateNodes.lLength; nodeID++)
     {
@@ -1013,7 +1035,7 @@ double _OCLEvaluator::oclmain(void)
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmModel_cache, CL_TRUE, 0,
                 sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1),
                 model, 0, NULL, NULL);
-	clFinish(cqCommandQueue);
+	//clFinish(cqCommandQueue);
     if (ciErr1 != CL_SUCCESS)
     {
         printf("%i\n", ciErr1); //prints "1"
@@ -1052,10 +1074,10 @@ double _OCLEvaluator::oclmain(void)
     for (int nodeIndex = 0; nodeIndex < updateNodes.lLength; nodeIndex++)
     {
 		//printf("NewNode\n");
-		printf("NewNode #%i\n", nodeIndex);
 		long 	nodeCode = updateNodes.lData[nodeIndex],
 				parentCode = flatParents.lData[nodeCode];
 
+		//printf("NewNode: %i, NodeCode: %i\n", nodeIndex, nodeCode);
         bool isLeaf = nodeCode < flatLeaves.lLength;
 
 		if (isLeaf)
@@ -1097,8 +1119,6 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 |= clFlush(cqCommandQueue);
 			clFinish(cqCommandQueue);
 			printf("Finished\n");
-			/*
-			*/
 		}
 		else
 		{	
@@ -1111,7 +1131,7 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
 			ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&nodeIndex);
 			taggedInternals.lData[parentCode] = 1;
-			printf("Internalg Started ...");
+			printf("Internal Started ...");
 			ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckInternalKernel, 2, NULL, 
 											szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
 
@@ -1119,8 +1139,6 @@ double _OCLEvaluator::oclmain(void)
 			ciErr1 |= clFlush(cqCommandQueue);
 			clFinish(cqCommandQueue);
 			printf("Finished\n");
-			/*
-			*/
 		}
         if (ciErr1 != CL_SUCCESS)
         {
