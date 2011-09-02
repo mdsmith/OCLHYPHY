@@ -54,7 +54,7 @@ typedef cl_float clfp;
 #endif
 
 //#define __VERBOSE__
-//#define OCLGPU
+#define OCLGPU
 #ifdef OCLGPU
 #define OCLTARGET " #define BLOCK_SIZE 16 \n" 
 #else
@@ -82,6 +82,7 @@ cl_program cpLeafProgram;
 cl_program cpInternalProgram;
 cl_program cpAmbigProgram;
 cl_program cpResultProgram;
+cl_kernel ckTheOneKernel;
 cl_kernel ckLeafKernel;
 cl_kernel ckInternalKernel;
 cl_kernel ckAmbigKernel;
@@ -405,6 +406,244 @@ int _OCLEvaluator::setupContext(void)
 //  "" FLOATPREC                                                                                                                        \
     // Create the program
     const char *program_source = "\n" \
+    "" OCLTARGET                                                                                                                        \
+    " #define MIN(a,b) ((a)>(b)?(b):(a))                                                                                            \n" \
+    "__kernel void LeafKernel(  __global float* node_cache,                 // argument 0                                           \n" \
+    "                           __global const float* model,                // argument 1                                           \n" \
+    "                           __global const float* nodRes_cache,         // argument 2                                           \n" \
+    "                           __constant long* nodFlag_cache,             // argument 3                                           \n" \
+    "                           long sites,                                 // argument 4                                           \n" \
+    "                           long characters,                            // argument 5                                           \n" \
+    "                           long childNodeIndex,                        // argument 6                                           \n" \
+    "                           long parentNodeIndex,                       // argument 7                                           \n" \
+    "                           long roundCharacters,                       // argument 8                                           \n" \
+    "                           int intTagState,                            // argument 9                                           \n" \
+    "                           int nodeID,                                 // argument 10                                          \n" \
+    "                           __global int* scalings,                     // argument 11                                          \n" \
+    "                           float scalar,                               // argument 12                                          \n" \
+    "                           float uFlowThresh                           // argument 13                                          \n" \
+    "                           )                                                                                                   \n" \
+    "{                                                                                                                              \n" \
+    "   int gx = get_global_id(0); // pchar                                                                                         \n" \
+    "   if (gx > characters) return;                                                                                                \n" \
+    "   int gy = get_global_id(1); // site                                                                                          \n" \
+    "   if (gy > sites) return;                                                                                                     \n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
+    "   float privateParentScratch = 1.0f;                                                                                          \n" \
+    "   int scale = 0;                                                                                                              \n" \
+    "   if (intTagState == 1)                                                                                                       \n" \
+    "   {                                                                                                                           \n" \
+    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
+    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
+    "   }                                                                                                                           \n" \
+    "   long siteState = nodFlag_cache[childNodeIndex*sites + gy];                                                                  \n" \
+    "   privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];                     \n" \
+    "   if (gy < sites && gx < characters)                                                                                          \n" \
+    "   {                                                                                                                           \n" \
+    "       node_cache[parentCharacterIndex] = privateParentScratch;                                                                \n" \
+    "       scalings[parentCharacterIndex] = scale;                                                                                 \n" \
+    "   }                                                                                                                           \n" \
+    "}                                                                                                                              \n" \
+    "__kernel void TheOneKernel(    __global float* node_cache,                 // argument 0                                       \n" \
+    "                               __global const float* model,                // argument 1                                       \n" \
+    "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
+    "                               __constant long* nodFlag_cache,             // argument 3                                       \n" \
+    "                               long sites,                                 // argument 4                                       \n" \
+    "                               long characters,                            // argument 5                                       \n" \
+    "                               long childNodeIndex,                        // argument 6                                       \n" \
+    "                               long parentNodeIndex,                       // argument 7                                       \n" \
+    "                               long roundCharacters,                       // argument 8                                       \n" \
+    "                               int intTagState,                            // argument 9                                       \n" \
+    "                               int nodeID,                                 // argument 10                                      \n" \
+    "                               __global int* scalings,                     // argument 11                                      \n" \
+    "                               float scalar,                               // argument 12                                      \n" \
+    "                               float uFlowThresh,                          // argument 13                                      \n" \
+    "                               int isLeaf,                                 // argument 14                                      \n" \
+    "                               __global float* root_cache,                 // argument 15                                      \n" \
+    "                               __global int* root_scalings                 // argument 16                                      \n" \
+    "                               )                                                                                               \n" \
+    "{                                                                                                                              \n" \
+    "   // block index                                                                                                              \n" \
+    "   int bx = get_group_id(0);                                                                                                   \n" \
+    "   int by = get_group_id(1);                                                                                                   \n" \
+    "   // thread index                                                                                                             \n" \
+    "   int tx = get_local_id(0);                                                                                                   \n" \
+    "   int ty = get_local_id(1);                                                                                                   \n" \
+    "   // global index                                                                                                             \n" \
+    "   int gx = get_global_id(0);                                                                                                  \n" \
+    "   int gy = get_global_id(1);                                                                                                  \n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
+    "   float privateParentScratch = 1.0f;                                                                                          \n" \
+    "   int scale = 0;                                                                                                              \n" \
+    "   if (intTagState == 1 && gy < sites && gx < characters)                                                                      \n" \
+    "   {                                                                                                                           \n" \
+    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
+    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
+    "   }                                                                                                                           \n" \
+    "   float sum = 0.f;                                                                                                            \n" \
+    "   float childSum = 0.f;                                                                                                       \n" \
+    "   int scaleScratch = 0;                                                                                                       \n" \
+    "   if (!isLeaf) scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];                       \n" \
+    "   __local float childScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                         \n" \
+    "   __local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                         \n" \
+    "   int siteState = nodFlag_cache[childNodeIndex*sites + gy];                                                                   \n" \
+    "   int ambig = 0;                                                                                                              \n" \
+    "   if (siteState < 0)                                                                                                          \n" \
+    "   {                                                                                                                           \n" \
+    "       ambig = 1;                                                                                                              \n" \
+    "       siteState = -siteState-1;                                                                                               \n" \
+    "   }                                                                                                                           \n" \
+    "   int cChar = 0;                                                                                                              \n" \
+    "   for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)                                                             \n" \
+    "   {                                                                                                                           \n" \
+    "       if (!isLeaf)                                                                                                            \n" \
+    "           childScratch[ty][tx] =                                                                                              \n" \
+    "               node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];            \n" \
+    "       else if (ambig)                                                                                                         \n" \
+    "           childScratch[ty][tx] =                                                                                              \n" \
+    "               nodRes_cache[siteState*characters + (charBlock*BLOCK_SIZE) + tx];                                               \n" \
+    "       else                                                                                                                    \n" \
+    "       {                                                                                                                       \n" \
+    "           if (charBlock*BLOCK_SIZE + tx == siteState)                                                                         \n" \
+    "               childScratch[ty][tx] = 1;                                                                                       \n" \
+    "           else                                                                                                                \n" \
+    "               childScratch[ty][tx] = 0;                                                                                       \n" \
+    "       }                                                                                                                       \n" \
+    "       modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "       for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)                                            \n" \
+    "       {                                                                                                                       \n" \
+    "           sum += childScratch[ty][myChar] * modelScratch[myChar][tx];                                                         \n" \
+    "           childSum += childScratch[ty][myChar];                                                                               \n" \
+    "       }                                                                                                                       \n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "       cChar += BLOCK_SIZE;                                                                                                    \n" \
+    "   }                                                                                                                           \n" \
+    "   while (childSum < 1 && childSum != 0)                                                                                       \n" \
+    "   {                                                                                                                           \n" \
+    "       childSum *= scalar;                                                                                                     \n" \
+    "       sum *= scalar;                                                                                                          \n" \
+    "       scaleScratch++;                                                                                                         \n" \
+    "   }                                                                                                                           \n" \
+    "   scale += scaleScratch;                                                                                                      \n" \
+    "   privateParentScratch *= sum;                                                                                                \n" \
+    "   if (gy < sites && gx < characters)                                                                                          \n" \
+    "   {                                                                                                                           \n" \
+    "       scalings     [parentCharacterIndex]  = scale;                                                                            \n" \
+    "       root_scalings[gy*roundCharacters+gx] = scale;                                                                           \n" \
+    "       //node_cache   [parentCharacterIndex]  = privateParentScratch;                                                             \n" \
+    "       node_cache   [parentCharacterIndex]  = 1.f;                                                             \n" \
+    "       root_cache   [gy*roundCharacters+gx] = privateParentScratch;                                                            \n" \
+    "   }                                                                                                                           \n" \
+    "}                                                                                                                              \n" \
+    "__kernel void InternalKernel(  /*__global float* node_cache,                 // argument 0                                       \n" \
+    "                               __global const float* model,                // argument 1                                       \n" \
+    "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
+    "                               long sites,                                 // argument 3                                       \n" \
+    "                               long characters,                            // argument 4                                       \n" \
+    "                               long childNodeIndex,                        // argument 5                                       \n" \
+    "                               long parentNodeIndex,                       // argument 6                                       \n" \
+    "                               long roundCharacters,                       // argument 7                                       \n" \
+    "                               int intTagState,                            // argument 8                                       \n" \
+    "                               int nodeID,                                 // argument 9                                       \n" \
+    "                               __global float* root_cache,                 // argument 10                                      \n" \
+    "                               __global int* scalings,                     // argument 11                                      \n" \
+    "                               float scalar,                               // argument 12                                      \n" \
+    "                               float uFlowThresh,                          // argument 13                                      \n" \
+    "                               __global int* root_scalings                 // argument 14 */                                     \n" \
+    "                               __global float* node_cache,                 // argument 0                                       \n" \
+    "                               __global const float* model,                // argument 1                                       \n" \
+    "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
+    "                               long sites,                                 // argument 3                                       \n" \
+    "                               long characters,                            // argument 4                                       \n" \
+    "                               long childNodeIndex,                        // argument 5                                       \n" \
+    "                               long parentNodeIndex,                       // argument 6                                       \n" \
+    "                               long roundCharacters,                       // argument 7                                       \n" \
+    "                               int intTagState,                            // argument 8                                       \n" \
+    "                               int nodeID,                                 // argument 9                                      \n" \
+    "                               __global float* root_cache,                 // argument 10                                      \n" \
+    "                               __global int* scalings,                     // argument 11                                      \n" \
+    "                               float scalar,                               // argument 12                                      \n" \
+    "                               float uFlowThresh,                          // argument 13                                      \n" \
+    "                               __global int* root_scalings                 // argument 14                                      \n" \
+    "                               )                                                                                               \n" \
+    "{                                                                                                                              \n" \
+    "   // thread index                                                                                                             \n" \
+    "   int tx = get_local_id(0);   //local pchar                                                                                   \n" \
+    "   int ty = get_local_id(1);   //local site                                                                                    \n" \
+    "   // global index                                                                                                             \n" \
+    "   int gx = get_global_id(0);                                                                                                  \n" \
+    "   int gy = get_global_id(1);                                                                                                  \n" \
+    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
+    "   float privateParentScratch = 1.0f;                                                                                          \n" \
+    "   int scale = 0;                                                                                                              \n" \
+    "   if (intTagState == 1 && gy < sites && gx < characters)                                                                      \n" \
+    "   {                                                                                                                           \n" \
+    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
+    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
+    "   }                                                                                                                           \n" \
+    "   float sum = 0.f;                                                                                                                \n" \
+    "   float childSum = 0.f;                                                                                                       \n" \
+    "   int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];                                \n" \
+    "   __local float  childScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
+    "   __local float  modelScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
+    "   int cChar = 0;                                                                                                              \n" \
+    "   for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)                                                             \n" \
+    "   {                                                                                                                           \n" \
+    "       childScratch[ty][tx] =                                                                                                  \n" \
+    "           node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];                \n" \
+    "       modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "       for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)                                            \n" \
+    "       {                                                                                                                       \n" \
+    "           sum += childScratch[ty][myChar] * modelScratch[myChar][tx];                                                         \n" \
+    "           childSum += childScratch[ty][myChar];                                                                               \n" \
+    "       }                                                                                                                       \n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "       cChar += BLOCK_SIZE;                                                                                                    \n" \
+    "   }                                                                                                                           \n" \
+    "   while (childSum < 1 && childSum != 0)                                                                                       \n" \
+    "   {                                                                                                                           \n" \
+    "       childSum *= scalar;                                                                                                     \n" \
+    "       sum *= scalar;                                                                                                          \n" \
+    "       scaleScratch++;                                                                                                         \n" \
+    "   }                                                                                                                           \n" \
+    "   scale += scaleScratch;                                                                                                      \n" \
+    "   privateParentScratch *= sum;                                                                                                \n" \
+    "   if (gy < sites && gx < characters)                                                                                          \n" \
+    "   {                                                                                                                           \n" \
+    "       scalings     [parentCharacterIndex]  = scale;                                                                           \n" \
+    "       root_scalings[gy*roundCharacters+gx] = scale;                                                                           \n" \
+    "       //node_cache   [parentCharacterIndex]  = privateParentScratch;                                                            \n" \
+    "       node_cache   [parentCharacterIndex]  = 1.0f;                                                            \n" \
+    "       root_cache   [gy*roundCharacters+gx] = privateParentScratch;                                                            \n" \
+    "   }                                                                                                                           \n" \
+    "}                                                                                                                              \n" \
+    "__kernel void ResultKernel (   __global int* freq_cache,                   // argument 0                                       \n" \
+    "                               __global float* prob_cache,                 // argument 1                                       \n" \
+    "                               __global float* result_cache,               // argument 2                                       \n" \
+    "                               __global float* root_cache,                 // argument 3                                       \n" \
+    "                               __global int* root_scalings,                // argument 4                                       \n" \
+    "                               long sites,                                 // argument 5                                       \n" \
+    "                               long roundCharacters,                       // argument 6                                       \n" \
+    "                               float scalar,                               // argument 7                                       \n" \
+    "                               long characters                             // argument 8                                       \n" \
+    "                           )                                                                                                   \n" \
+    "{                                                                                                                              \n" \
+    "   int pchar = get_global_id(0);                                                                                               \n" \
+    "   int site = get_global_id(1);                                                                                                \n" \
+    "   if (pchar != 0) return;                                                                                                     \n" \
+    "   float acc = 0.0f;                                                                                                           \n" \
+    "   int scale = root_scalings[site*roundCharacters];                                                                            \n" \
+    "   for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
+    "   {                                                                                                                           \n" \
+    "       acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
+    "   }                                                                                                                           \n" \
+    "   if (site < sites)                                                                                                           \n" \
+    "       result_cache[site] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "}                                                                                                                              \n" \
+    "\n"; 
+    const char *program_source_OLD = "\n" \
     "" OCLTARGET                                                                                                                        \
     " #define MIN(a,b) ((a)>(b)?(b):(a))                                                                                            \n" \
     "__kernel void LeafKernel(  __global float* node_cache,                 // argument 0                                           \n" \
@@ -1050,6 +1289,28 @@ int _OCLEvaluator::setupContext(void)
     
     // Create the kernel
     //ckKernel = clCreateKernel(cpProgram, "FirstLoop", &ciErr1);
+    ckTheOneKernel = clCreateKernel(cpMLProgram, "TheOneKernel", &ciErr1);
+    printf("clCreateKernel (TheOneKernel)...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    ckInternalKernel = clCreateKernel(cpMLProgram, "InternalKernel", &ciErr1);
+    printf("clCreateKernel (InternalKernel)...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+    ckResultKernel = clCreateKernel(cpMLProgram, "ResultKernel", &ciErr1);
+    printf("clCreateKernel (ResultKernel)...\n"); 
+    if (ciErr1 != CL_SUCCESS)
+    {
+        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
+        Cleanup(EXIT_FAILURE);
+    }
+/*
     ckLeafKernel = clCreateKernel(cpMLProgram, "LeafKernel", &ciErr1);
     printf("clCreateKernel (LeafKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -1078,7 +1339,6 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-/*
     ckLeafKernel = clCreateKernel(cpLeafProgram, "LeafKernel", &ciErr1);
     printf("clCreateKernel (LeafKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -1107,7 +1367,6 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-*/
 
     size_t maxKernelSize;
     ciErr1 = clGetKernelWorkGroupInfo(ckLeafKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
@@ -1119,6 +1378,11 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 = clGetKernelWorkGroupInfo(ckInternalKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
                              sizeof(size_t), &maxKernelSize, NULL);
     printf("Max Internal Kernel Work Group Size: %i \n", maxKernelSize);
+*/
+    size_t maxKernelSize;
+    ciErr1 = clGetKernelWorkGroupInfo(ckTheOneKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+    printf("Max TheOne Kernel Work Group Size: %i \n", maxKernelSize);
     ciErr1 = clGetKernelWorkGroupInfo(ckResultKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
                              sizeof(size_t), &maxKernelSize, NULL);
     printf("Max Result Kernel Work Group Size: %i \n", maxKernelSize);
@@ -1130,10 +1394,45 @@ int _OCLEvaluator::setupContext(void)
     long tempParentNodeIndex = 0;
     long tempRoundCharCount = roundUpToNextPowerOfTwo(alphabetDimension);
     int  tempTagIntState = 0;
+    int  tempIsLeaf = 0;
     int   tempNodeID = 0;
     float tempScalar = scalar;
     float tempuFlowThresh = 0.000000001f;
 
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 3, sizeof(cl_mem), (void*)&cmNodFlag_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 4, sizeof(cl_long), (void*)&tempSiteCount);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 5, sizeof(cl_long), (void*)&tempCharCount);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 6, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 7, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 8, sizeof(cl_long), (void*)&tempRoundCharCount); 
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 9, sizeof(cl_int), (void*)&tempTagIntState);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 10, sizeof(cl_int), (void*)&tempNodeID); 
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 12, sizeof(cl_float), (void*)&tempScalar);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 14, sizeof(cl_int), (void*)&tempIsLeaf);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 15, sizeof(cl_mem), (void*)&cmroot_cache);
+    ciErr1 |= clSetKernelArg(ckTheOneKernel, 16, sizeof(cl_mem), (void*)&cmroot_scalings);
+
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 3, sizeof(cl_long), (void*)&tempSiteCount);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 4, sizeof(cl_long), (void*)&tempCharCount);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&tempChildNodeIndex); // reset this in the loop
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&tempParentNodeIndex); // reset this in the loop
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 7, sizeof(cl_long), (void*)&tempRoundCharCount); 
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempTagIntState);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&tempNodeID); 
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 10, sizeof(cl_mem), (void*)&cmroot_cache);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 11, sizeof(cl_mem), (void*)&cmScalings_cache);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 12, sizeof(cl_float), (void*)&tempScalar);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
+    ciErr1 |= clSetKernelArg(ckInternalKernel, 14, sizeof(cl_mem), (void*)&cmroot_scalings);
+/*
     ciErr1  = clSetKernelArg(ckLeafKernel, 0, sizeof(cl_mem), (void*)&cmNode_cache);
     ciErr1 |= clSetKernelArg(ckLeafKernel, 1, sizeof(cl_mem), (void*)&cmModel_cache);
     ciErr1 |= clSetKernelArg(ckLeafKernel, 2, sizeof(cl_mem), (void*)&cmNodRes_cache);
@@ -1179,6 +1478,7 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= clSetKernelArg(ckInternalKernel, 12, sizeof(cl_float), (void*)&tempScalar);
     ciErr1 |= clSetKernelArg(ckInternalKernel, 13, sizeof(cl_float), (void*)&tempuFlowThresh);
     ciErr1 |= clSetKernelArg(ckInternalKernel, 14, sizeof(cl_mem), (void*)&cmroot_scalings);
+*/
 
     ciErr1 |= clSetKernelArg(ckResultKernel, 0, sizeof(cl_mem), (void*)&cmFreq_cache);
     ciErr1 |= clSetKernelArg(ckResultKernel, 1, sizeof(cl_mem), (void*)&cmProb_cache);
@@ -1189,7 +1489,6 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= clSetKernelArg(ckResultKernel, 6, sizeof(cl_long), (void*)&tempRoundCharCount); 
     ciErr1 |= clSetKernelArg(ckResultKernel, 7, sizeof(cl_float), (void*)&tempScalar);
     ciErr1 |= clSetKernelArg(ckResultKernel, 8, sizeof(cl_long), (void*)&tempCharCount);
-
 
     //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -1355,7 +1654,24 @@ double _OCLEvaluator::oclmain(void)
 
         //printf("NewNode: %i, NodeCode: %i\n", nodeIndex, nodeCode);
         bool isLeaf = nodeCode < flatLeaves.lLength;
-
+        int tempIsLeaf = (isLeaf?1:0);
+        int nodeCodeTemp = nodeCode;
+        if (!isLeaf) 
+        {
+            nodeCodeTemp -= flatLeaves.lLength;
+        }
+        int tempIntTagState = taggedInternals.lData[parentCode];
+        ciErr1 |= clSetKernelArg(ckTheOneKernel, 6, sizeof(cl_long), (void*)&nodeCodeTemp);
+        ciErr1 |= clSetKernelArg(ckTheOneKernel, 7, sizeof(cl_long), (void*)&parentCode);
+        ciErr1 |= clSetKernelArg(ckTheOneKernel, 9, sizeof(cl_int), (void*)&tempIntTagState);
+        ciErr1 |= clSetKernelArg(ckTheOneKernel, 10, sizeof(cl_int), (void*)&nodeIndex);
+        ciErr1 |= clSetKernelArg(ckTheOneKernel, 14, sizeof(cl_int), (void*)&tempIsLeaf);
+        taggedInternals.lData[parentCode] = 1;
+        ciErr1 = clEnqueueNDRangeKernel(cqCommandQueue, ckTheOneKernel, 2, NULL, 
+                                        szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL);
+        ciErr1 |= clFlush(cqCommandQueue);
+        clFinish(cqCommandQueue);
+/*
         if (isLeaf)
         {
             long nodeCodeTemp = nodeCode;
@@ -1404,14 +1720,19 @@ double _OCLEvaluator::oclmain(void)
         }
         else
         {   
+*/
             long tempLeafState = 0;
-            nodeCode -= flatLeaves.lLength;
-            long nodeCodeTemp = nodeCode;
-            int tempIntTagState = taggedInternals.lData[parentCode];
-            ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
-            ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&parentCode);
-            ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
-            ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&nodeIndex);
+ //           nodeCode -= flatLeaves.lLength;
+  //          long nodeCodeTemp = nodeCode;
+   //         int tempIntTagState = taggedInternals.lData[parentCode];
+        //    ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
+         //   ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&parentCode);
+          //  ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
+           // ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&nodeIndex);
+        ciErr1 |= clSetKernelArg(ckInternalKernel, 5, sizeof(cl_long), (void*)&nodeCodeTemp);
+        ciErr1 |= clSetKernelArg(ckInternalKernel, 6, sizeof(cl_long), (void*)&parentCode);
+        ciErr1 |= clSetKernelArg(ckInternalKernel, 8, sizeof(cl_int), (void*)&tempIntTagState);
+        ciErr1 |= clSetKernelArg(ckInternalKernel, 9, sizeof(cl_int), (void*)&nodeIndex);
             taggedInternals.lData[parentCode] = 1;
 #ifdef __VERBOSE__
             printf("Internal Started (ParentCode: %i)...", parentCode);
@@ -1425,7 +1746,7 @@ double _OCLEvaluator::oclmain(void)
 #ifdef __VERBOSE__
             printf("Finished\n");
 #endif
-        }
+//        }
         if (ciErr1 != CL_SUCCESS)
         {
             printf("%i\n", ciErr1); //prints "1"
