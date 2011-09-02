@@ -54,7 +54,7 @@ typedef cl_float clfp;
 #endif
 
 //#define __VERBOSE__
-//#define OCLGPU
+#define OCLGPU
 #ifdef OCLGPU
 #define OCLTARGET " #define BLOCK_SIZE 16 \n" 
 #else
@@ -410,7 +410,7 @@ int _OCLEvaluator::setupContext(void)
     "__kernel void LeafKernel(  __global float* node_cache,                 // argument 0                                           \n" \
     "                           __global const float* model,                // argument 1                                           \n" \
     "                           __global const float* nodRes_cache,         // argument 2                                           \n" \
-    "                           __constant long* nodFlag_cache,             // argument 3                                           \n" \
+    "                           __global const long* nodFlag_cache,         // argument 3                                           \n" \
     "                           long sites,                                 // argument 4                                           \n" \
     "                           long characters,                            // argument 5                                           \n" \
     "                           long childNodeIndex,                        // argument 6                                           \n" \
@@ -446,7 +446,7 @@ int _OCLEvaluator::setupContext(void)
     "__kernel void AmbigKernel(     __global float* node_cache,                 // argument 0                                       \n" \
     "                               __global const float* model,                // argument 1                                       \n" \
     "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
-    "                               __constant long* nodFlag_cache,             // argument 3                                       \n" \
+    "                               __global const long* nodFlag_cache,         // argument 3                                       \n" \
     "                               long sites,                                 // argument 4                                       \n" \
     "                               long characters,                            // argument 5                                       \n" \
     "                               long childNodeIndex,                        // argument 6                                       \n" \
