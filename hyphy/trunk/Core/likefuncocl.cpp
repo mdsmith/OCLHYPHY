@@ -586,62 +586,64 @@ int _OCLEvaluator::setupContext(void)
     "                               long characters                             // argument 8                                       \n" \
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
-    "   int pchar = get_global_id(0);                                                                                               \n" \
+    "   // shrink the work group to sites, rather than sites x characters                                                           \n" \
+    "   if (get_global_id(0) != 0) return;                                                         \n" \
     "   int site = get_global_id(1);                                                                                                \n" \
+    "   result_cache[site] = 0.f;                                                                                                \n" \
+    "   if (get_group_id(1) >= get_local_size(0)*get_local_size(1)) return;                                                         \n" \
     "   int localSite = get_local_id(1);                                                                                                \n" \
-    "   if (pchar != 0) return;                                                                                                     \n" \
-    "   float acc = 0.0f;                                                                                                           \n" \
-    "   int scale = root_scalings[site*roundCharacters];                                                                            \n" \
     "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
-    "   float localSum = 0.f;                                                                            \n" \
-    "   for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
+    "   resultScratch[localSite] = 0.f;                                                          \n" \
+    "   while (site < sites)                                                                                                     \n" \
     "   {                                                                                                                           \n" \
-    "       acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
+    "       float acc = 0.f;                                                                                                           \n" \
+    "       int scale = root_scalings[site*roundCharacters];                                                                            \n" \
+    "       for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
+    "       {                                                                                                                           \n" \
+    "           acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
+    "       }                                                                                                                           \n" \
+    "       //resultScratch[localSite] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "       result_cache[site] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "       site += get_local_size(0)*get_local_size(1);                                                                            \n" \
     "   }                                                                                                                           \n" \
     "   /*                                                                                              \n" \
-    "   if (site < sites)                                                                                                           \n" \
-    "       result_cache[site] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
-    "   else result_cache[site] = 0.f;                                                                                              \n" \
-    "   */                                                                                              \n" \
-    "   if (site < sites)                                                                                                           \n" \
-    "       resultScratch[localSite] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
-    "   else resultScratch[site] = 0.f;                                                                                              \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
-    "       if (site < offset)                                                                                                      \n" \
+    "       if (localSite < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
-    "           float other = resultScratch[site + offset];                                                                          \n" \
-    "           float mine  = resultScratch[site];                                                                                   \n" \
-    "           resultScratch[site] = mine + other;                                                                                 \n" \
+    "           float other = resultScratch[localSite + offset];                                                                          \n" \
+    "           float mine  = resultScratch[localSite];                                                                                   \n" \
+    "           resultScratch[localSite] = mine + other;                                                                                 \n" \
     "       }                                                                                                                       \n" \
     "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
     "   }                                                                                                                           \n" \
-    "   if (localSite == 0) result_cache[site/BLOCK_SIZE] = resultScratch[0];                                                                   \n" \
-    "   /*                                                                                              \n" \
+    "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
+    "   if (localSite == 0) result_cache[get_group_id(1)] = resultScratch[0];                                                                   \n" \
     "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "__kernel void ReductionKernel ( __global float* result_cache               // argument 1                                       \n" \
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
-    "   int localSite = get_local_id(1);                                                                                                \n" \
+    "   if (get_group_id(0) != 0) return;                                                                                                     \n" \
+    "   if (get_group_id(1) != 0) return;                                                                                                     \n" \
     "   /*                                                                                              \n" \
-    "   if (get_global_id(0) != 0) return;                                                                                                     \n" \
-    "   if (get_block_id(1) != 0) return;                                                                                                     \n" \
-    "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
-    "   resultScratch[localSite] = result_cache[localSite];                                     \n" \
+    "   int groupDim = get_local_size(0)*get_local_size(1);                                                                         \n" \
+    "   int groupNum = get_local_id(1)*get_local_size(1)+get_local_id(0);                                                           \n" \
+    "   __local float resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
+    "   resultScratch[groupNum] = result_cache[groupNum];                                     \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
-    "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
+    "   for (int offset = groupDim/2; offset > 0; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
-    "       if (site < offset)                                                                                                      \n" \
+    "       if (groupNum < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
-    "           float other = resultScratch[site + offset];                                                                         \n" \
-    "           float mine  = resultScratch[site];                                                                                  \n" \
-    "           resultScratch[site]  = mine + other;                                                                                 \n" \
+    "           float other = resultScratch[groupNum + offset];                                                                         \n" \
+    "           float mine  = resultScratch[groupNum];                                                                                  \n" \
+    "           resultScratch[groupNum]  = mine + other;                                                                                 \n" \
     "       }                                                                                                                       \n" \
     "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
     "   }                                                                                                                           \n" \
-    "   if (localSite == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
+    "   if (groupNum == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
     "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "\n"; 
@@ -1114,7 +1116,6 @@ double _OCLEvaluator::oclmain(void)
     
     clFinish(cqCommandQueue);
     
-/*
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &queueEnd);
     queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
@@ -1132,18 +1133,21 @@ double _OCLEvaluator::oclmain(void)
 #endif
     //printf("! ");
     //return result;
+/*
     printf("Result_Cache: \n");
     for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
         printf("%g ", ((float*)result_cache)[i]);
     printf("\n\n");
     printf("result: %g", oResult);
-    return oResult;
 */
+    return oResult;
+/*
     for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
         printf("%g ", ((float*)result_cache)[i]);
     printf("\n\n");
     printf("result: %g\n", (double)((float*)result_cache)[0]);
     return (double)((float*)result_cache)[0];
+*/
 }
 
 
