@@ -86,6 +86,7 @@ cl_kernel ckLeafKernel;
 cl_kernel ckInternalKernel;
 cl_kernel ckAmbigKernel;
 cl_kernel ckResultKernel;
+cl_kernel ckReductionKernel;
 size_t szGlobalWorkSize[2];        // 1D var for Total # of work items
 size_t szLocalWorkSize[2];         // 1D var for # of work items in the work group 
 size_t localMemorySize;         // size of local memory buffer for kernel scratch
@@ -176,7 +177,7 @@ int _OCLEvaluator::setupContext(void)
     freq_cache      = (void*)malloc(sizeof(cl_int)*siteCount);
     root_cache      = (void*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
     root_scalings   = (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
-    result_cache    = (void*)malloc(sizeof(cl_float)*siteCount);
+    result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
     model           = (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1));
 
     //printf("Allocated all of the arrays!\n");
@@ -192,27 +193,6 @@ int _OCLEvaluator::setupContext(void)
 
     //for (int i = 0; i < nodeCount*siteCount*alphabetDimension; i++)
     printf("siteCount: %i, alphabetDimension: %i \n", siteCount, alphabetDimension);
-    //printf("NodeCache: \n");
-/*
-    int alphaI = 0;
-    for (long i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
-    {
-        ((int*)scalings_cache)[i] = 0.;
-        if (i%(roundCharacters) < alphabetDimension)
-        {
-            ((float*)node_cache)[i] = (float)iNodeCache[alphaI];
-            alphaI++;
-            //printf("%g ", (float)iNodeCache[alphaI]);
-        }
-        else ((float*)node_cache)[i] = 0.0;
-//      double t = iNodeCache[i];        
-//      if (i%(siteCount*alphabetDimension) == 0)
-//            printf("Got another one %g\n",t);
-        //printf ("%i\n",i);
-    }
-        //printf("\n");
-    //printf("Node resolutions: \n");
-*/
     if (ambiguousNodes)
         for (int i = 0; i < nodeResCount; i++)
             ((float*)nodRes_cache)[i] = (float)(lNodeResolutions->theData[i]);
@@ -290,7 +270,8 @@ int _OCLEvaluator::setupContext(void)
     szLocalWorkSize[1] = 1;
 #endif
     szGlobalWorkSize[0] = 64;
-    szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
+    //szGlobalWorkSize[1] = ((siteCount + 16)/16)*16;
+    szGlobalWorkSize[1] = roundUpToNextPowerOfTwo(siteCount);
     //szGlobalWorkSize[1] = roundUpToNextPowerOfTwo(siteCount);
     printf("Global Work Size \t\t= %d, %d\nLocal Work Size \t\t= %d, %d\n# of Work Groups \t\t= %d\n\n", 
            szGlobalWorkSize[0], szGlobalWorkSize[1], szLocalWorkSize[0], szLocalWorkSize[1], 
@@ -358,8 +339,10 @@ int _OCLEvaluator::setupContext(void)
     cmFreq_cache = clCreateBuffer(cxGPUContext, CL_MEM_READ_ONLY,
                     sizeof(cl_float)*siteCount, NULL, &ciErr2);
     ciErr1 |= ciErr2;
+    //cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
+     //               sizeof(cl_float)*siteCount, NULL, &ciErr2);
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
-                    sizeof(cl_float)*siteCount, NULL, &ciErr2);
+                    sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
     ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -543,14 +526,14 @@ int _OCLEvaluator::setupContext(void)
     "                               )                                                                                               \n" \
     "{                                                                                                                              \n" \
     "   // thread index                                                                                                             \n" \
-    "   int tx = get_local_id(0);   //local pchar                                                                                   \n" \
-    "   int ty = get_local_id(1);   //local site                                                                                    \n" \
+    "   short tx = get_local_id(0);   //local pchar                                                                                   \n" \
+    "   short ty = get_local_id(1);   //local site                                                                                    \n" \
     "   // global index                                                                                                             \n" \
-    "   int gx = get_global_id(0);                                                                                                  \n" \
+    "   short gx = get_global_id(0);                                                                                                  \n" \
     "   int gy = get_global_id(1);                                                                                                  \n" \
     "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
     "   float privateParentScratch = 1.0f;                                                                                          \n" \
-    "   int scale = 0;                                                                                                              \n" \
+    "   short scale = 0;                                                                                                              \n" \
     "   if (intTagState == 1 && gy < sites && gx < characters)                                                                      \n" \
     "   {                                                                                                                           \n" \
     "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
@@ -561,7 +544,7 @@ int _OCLEvaluator::setupContext(void)
     "   int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];                                \n" \
     "   __local float  childScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
     "   __local float  modelScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
-    "   int cChar = 0;                                                                                                              \n" \
+    "   short cChar = 0;                                                                                                              \n" \
     "   for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)                                                             \n" \
     "   {                                                                                                                           \n" \
     "       childScratch[ty][tx] =                                                                                                  \n" \
@@ -605,238 +588,64 @@ int _OCLEvaluator::setupContext(void)
     "{                                                                                                                              \n" \
     "   int pchar = get_global_id(0);                                                                                               \n" \
     "   int site = get_global_id(1);                                                                                                \n" \
+    "   int localSite = get_local_id(1);                                                                                                \n" \
     "   if (pchar != 0) return;                                                                                                     \n" \
     "   float acc = 0.0f;                                                                                                           \n" \
     "   int scale = root_scalings[site*roundCharacters];                                                                            \n" \
+    "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
+    "   float localSum = 0.f;                                                                            \n" \
     "   for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
     "   {                                                                                                                           \n" \
     "       acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
     "   }                                                                                                                           \n" \
+    "   /*                                                                                              \n" \
     "   if (site < sites)                                                                                                           \n" \
     "       result_cache[site] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
-    "}                                                                                                                              \n" \
-    "\n"; 
-    const char *leaf_source = "\n" \
-    "__kernel void LeafKernel(  __global float* node_cache,                 // argument 0                                           \n" \
-    "                           __global const float* model,                // argument 1                                           \n" \
-    "                           __global const float* nodRes_cache,         // argument 2                                           \n" \
-    "                           __constant long* nodFlag_cache,             // argument 3                                           \n" \
-    "                           long sites,                                 // argument 4                                           \n" \
-    "                           long characters,                            // argument 5                                           \n" \
-    "                           long childNodeIndex,                        // argument 6                                           \n" \
-    "                           long parentNodeIndex,                       // argument 7                                           \n" \
-    "                           long roundCharacters,                       // argument 8                                           \n" \
-    "                           int intTagState,                            // argument 9                                           \n" \
-    "                           int nodeID,                                 // argument 10                                          \n" \
-    "                           __global int* scalings,                     // argument 11                                          \n" \
-    "                           float scalar,                               // argument 12                                          \n" \
-    "                           float uFlowThresh                           // argument 13                                          \n" \
-    "                           )                                                                                                   \n" \
-    "{                                                                                                                              \n" \
-    "   int gx = get_global_id(0); // pchar                                                                                         \n" \
-    "   if (gx > characters) return;                                                                                                \n" \
-    "   int gy = get_global_id(1); // site                                                                                          \n" \
-    "   if (gy > sites) return;                                                                                                     \n" \
-    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
-    "   float privateParentScratch = 1.0;                                                                                           \n" \
-    "   int scale = 0;                                                                                                              \n" \
-    "   if (intTagState == 1)                                                                                                       \n" \
-    "   {                                                                                                                           \n" \
-    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
-    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
-    "   }                                                                                                                           \n" \
-    "   long siteState = nodFlag_cache[childNodeIndex*sites + gy];                                                                  \n" \
-    "   privateParentScratch *= model[nodeID*roundCharacters*roundCharacters + siteState*roundCharacters + gx];                     \n" \
-    "   if (gy < sites && gx < characters)                                                                                          \n" \
-    "   {                                                                                                                           \n" \
-    "       node_cache[parentCharacterIndex] = privateParentScratch;                                                                \n" \
-    "       scalings[parentCharacterIndex] = scale;                                                                                 \n" \
-    "   }                                                                                                                           \n" \
-    "}                                                                                                                              \n" \
-    "\n";
-    const char *ambig_source = "\n" \
-    "" OCLTARGET                                                                                                                        \
-    " #define MIN(a,b) ((a)>(b)?(b):(a))                                                                                            \n" \
-    "__kernel void AmbigKernel(     __global float* node_cache,                 // argument 0                                       \n" \
-    "                               __global const float* model,                // argument 1                                       \n" \
-    "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
-    "                               __constant long* nodFlag_cache,             // argument 3                                       \n" \
-    "                               long sites,                                 // argument 4                                       \n" \
-    "                               long characters,                            // argument 5                                       \n" \
-    "                               long childNodeIndex,                        // argument 6                                       \n" \
-    "                               long parentNodeIndex,                       // argument 7                                       \n" \
-    "                               long roundCharacters,                       // argument 8                                       \n" \
-    "                               int intTagState,                            // argument 9                                       \n" \
-    "                               int nodeID,                                 // argument 10                                      \n" \
-    "                               __global int* scalings,                     // argument 11                                      \n" \
-    "                               float scalar,                               // argument 12                                      \n" \
-    "                               float uFlowThresh                           // argument 13                                      \n" \
-    "                               )                                                                                               \n" \
-    "{                                                                                                                              \n" \
-    "   // block index                                                                                                              \n" \
-    "   int bx = get_group_id(0);                                                                                                   \n" \
-    "   int by = get_group_id(1);                                                                                                   \n" \
-    "   // thread index                                                                                                             \n" \
-    "   int tx = get_local_id(0);                                                                                                   \n" \
-    "   int ty = get_local_id(1);                                                                                                   \n" \
-    "   // global index                                                                                                             \n" \
-    "   int gx = get_global_id(0);                                                                                                  \n" \
-    "   int gy = get_global_id(1);                                                                                                  \n" \
-    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
-    "   float privateParentScratch = 1.0;                                                                                           \n" \
-    "   int scale = 0;                                                                                                              \n" \
-    "   if (intTagState == 1 && gy < sites && gx < characters)                                                                      \n" \
-    "   {                                                                                                                           \n" \
-    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
-    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
-    "   }                                                                                                                           \n" \
-    "   float sum = 0.;                                                                                                             \n" \
-    "   float childSum = 0.;                                                                                                        \n" \
-    "   int scaleScratch = 0;                                                                                                       \n" \
-    "   __local float childScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                         \n" \
-    "   __local float modelScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                         \n" \
-    "   int siteState = nodFlag_cache[childNodeIndex*sites + gy];                                                                   \n" \
-    "   int ambig = 0;                                                                                                              \n" \
-    "   if (siteState < 0)                                                                                                          \n" \
-    "   {                                                                                                                           \n" \
-    "       ambig = 1;                                                                                                              \n" \
-    "       siteState = -siteState-1;                                                                                               \n" \
-    "   }                                                                                                                           \n" \
-    "   int cChar = 0;                                                                                                              \n" \
-    "   for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)                                                             \n" \
-    "   {                                                                                                                           \n" \
-    "       if (ambig)                                                                                                              \n" \
-    "           childScratch[ty][tx] =                                                                                              \n" \
-    "               nodRes_cache[siteState*characters + (charBlock*BLOCK_SIZE) + tx];                                               \n" \
-    "       else                                                                                                                    \n" \
-    "       {                                                                                                                       \n" \
-    "           if (charBlock*BLOCK_SIZE + tx == siteState)                                                                         \n" \
-    "               childScratch[ty][tx] = 1;                                                                                       \n" \
-    "           else                                                                                                                \n" \
-    "               childScratch[ty][tx] = 0;                                                                                       \n" \
-    "       }                                                                                                                       \n" \
-    "       modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
-    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
-    "       for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)                                            \n" \
-    "       {                                                                                                                       \n" \
-    "           sum += childScratch[ty][myChar] * modelScratch[myChar][tx];                                                         \n" \
-    "           childSum += childScratch[ty][myChar];                                                                               \n" \
-    "       }                                                                                                                       \n" \
-    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
-    "       cChar += BLOCK_SIZE;                                                                                                    \n" \
-    "   }                                                                                                                           \n" \
-    "   while (childSum < 1 && childSum != 0)                                                                                       \n" \
-    "   {                                                                                                                           \n" \
-    "       childSum *= scalar;                                                                                                     \n" \
-    "       sum *= scalar;                                                                                                          \n" \
-    "       scaleScratch++;                                                                                                         \n" \
-    "   }                                                                                                                           \n" \
-    "   scale += scaleScratch;                                                                                                      \n" \
-    "   privateParentScratch *= sum;                                                                                                \n" \
-    "   if (gy < sites && gx < characters)                                                                                          \n" \
-    "   {                                                                                                                           \n" \
-    "       scalings    [parentCharacterIndex]  = scale;                                                                            \n" \
-    "       node_cache  [parentCharacterIndex]  = privateParentScratch;                                                             \n" \
-    "   }                                                                                                                           \n" \
-    "}                                                                                                                              \n" \
-    "\n";
-    const char *internal_source = "\n" \
-    "" OCLTARGET                                                                                                                        \
-    " #define MIN(a,b) ((a)>(b)?(b):(a))                                                                                            \n" \
-    "__kernel void InternalKernel(  __global float* node_cache,                 // argument 0                                       \n" \
-    "                               __global const float* model,                // argument 1                                       \n" \
-    "                               __global const float* nodRes_cache,         // argument 2                                       \n" \
-    "                               long sites,                                 // argument 3                                       \n" \
-    "                               long characters,                            // argument 4                                       \n" \
-    "                               long childNodeIndex,                        // argument 5                                       \n" \
-    "                               long parentNodeIndex,                       // argument 6                                       \n" \
-    "                               long roundCharacters,                       // argument 7                                       \n" \
-    "                               int intTagState,                            // argument 8                                       \n" \
-    "                               int nodeID,                                 // argument 9                                       \n" \
-    "                               __global float* root_cache,                 // argument 10                                      \n" \
-    "                               __global int* scalings,                     // argument 11                                      \n" \
-    "                               float scalar,                               // argument 12                                      \n" \
-    "                               float uFlowThresh,                          // argument 13                                      \n" \
-    "                               __global int* root_scalings                 // argument 10                                      \n" \
-    "                               )                                                                                               \n" \
-    "{                                                                                                                              \n" \
-    "   // thread index                                                                                                             \n" \
-    "   int tx = get_local_id(0);   //local pchar                                                                                   \n" \
-    "   int ty = get_local_id(1);   //local site                                                                                    \n" \
-    "   // global index                                                                                                             \n" \
-    "   int gx = get_global_id(0);                                                                                                  \n" \
-    "   int gy = get_global_id(1);                                                                                                  \n" \
-    "   long parentCharacterIndex = parentNodeIndex*sites*roundCharacters + gy*roundCharacters + gx;                                \n" \
-    "   float privateParentScratch = 1.0;                                                                                           \n" \
-    "   int scale = 0;                                                                                                              \n" \
-    "   if (intTagState == 1 && gy < sites && gx < characters)                                                                      \n" \
-    "   {                                                                                                                           \n" \
-    "       privateParentScratch = node_cache[parentCharacterIndex];                                                                \n" \
-    "       scale = scalings[parentCharacterIndex];                                                                                 \n" \
-    "   }                                                                                                                           \n" \
-    "   float sum = 0.;                                                                                                             \n" \
-    "   float childSum = 0.;                                                                                                        \n" \
-    "   int scaleScratch = scalings[childNodeIndex*sites*roundCharacters + gy*roundCharacters + gx];                                \n" \
-    "   __local float  childScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
-    "   __local float  modelScratch[BLOCK_SIZE][BLOCK_SIZE];                                                                        \n" \
-    "   int cChar = 0;                                                                                                              \n" \
-    "   for (int charBlock = 0; charBlock < 64/BLOCK_SIZE; charBlock++)                                                             \n" \
-    "   {                                                                                                                           \n" \
-    "       childScratch[ty][tx] =                                                                                                  \n" \
-    "           node_cache[childNodeIndex*sites*roundCharacters + roundCharacters*gy + (charBlock*BLOCK_SIZE) + tx];                \n" \
-    "       modelScratch[ty][tx] = model[nodeID*roundCharacters*roundCharacters + roundCharacters*((charBlock*BLOCK_SIZE)+ty) + gx];\n" \
-    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
-    "       for (int myChar = 0; myChar < MIN(BLOCK_SIZE, (characters-cChar)); myChar++)                                            \n" \
-    "       {                                                                                                                       \n" \
-    "           sum += childScratch[ty][myChar] * modelScratch[myChar][tx];                                                         \n" \
-    "           childSum += childScratch[ty][myChar];                                                                               \n" \
-    "       }                                                                                                                       \n" \
-    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
-    "       cChar += BLOCK_SIZE;                                                                                                    \n" \
-    "   }                                                                                                                           \n" \
-    "   while (childSum < 1 && childSum != 0)                                                                                       \n" \
-    "   {                                                                                                                           \n" \
-    "       childSum *= scalar;                                                                                                     \n" \
-    "       sum *= scalar;                                                                                                          \n" \
-    "       scaleScratch++;                                                                                                         \n" \
-    "   }                                                                                                                           \n" \
-    "   scale += scaleScratch;                                                                                                      \n" \
-    "   privateParentScratch *= sum;                                                                                                \n" \
-    "   if (gy < sites && gx < characters)                                                                                          \n" \
-    "   {                                                                                                                           \n" \
-    "       scalings     [parentCharacterIndex]  = scale;                                                                           \n" \
-    "       root_scalings[gy*roundCharacters+gx] = scale;                                                                           \n" \
-    "       node_cache   [parentCharacterIndex]  = privateParentScratch;                                                            \n" \
-    "       root_cache   [gy*roundCharacters+gx] = privateParentScratch;                                                            \n" \
-    "   }                                                                                                                           \n" \
-    "}                                                                                                                              \n" \
-    "\n";
-    const char *result_source = "\n" \
-    "__kernel void ResultKernel (   __global int* freq_cache,                   // argument 0                                       \n" \
-    "                               __global float* prob_cache,                 // argument 1                                       \n" \
-    "                               __global float* result_cache,               // argument 2                                       \n" \
-    "                               __global float* root_cache,                 // argument 3                                       \n" \
-    "                               __global int* root_scalings,                // argument 4                                       \n" \
-    "                               long sites,                                 // argument 5                                       \n" \
-    "                               long roundCharacters,                       // argument 6                                       \n" \
-    "                               float scalar,                               // argument 7                                       \n" \
-    "                               long characters                             // argument 8                                       \n" \
-    "                           )                                                                                                   \n" \
-    "{                                                                                                                              \n" \
-    "   int pchar = get_global_id(0);                                                                                               \n" \
-    "   int site = get_global_id(1);                                                                                                \n" \
-    "   if (pchar != 0) return;                                                                                                     \n" \
-    "   float acc = 0.0;                                                                                                            \n" \
-    "   int scale = root_scalings[site*roundCharacters];                                                                            \n" \
-    "   for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
-    "   {                                                                                                                           \n" \
-    "       acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
-    "   }                                                                                                                           \n" \
+    "   else result_cache[site] = 0.f;                                                                                              \n" \
+    "   */                                                                                              \n" \
     "   if (site < sites)                                                                                                           \n" \
-    "       result_cache[site] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                                 \n" \
+    "       resultScratch[localSite] = (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "   else resultScratch[site] = 0.f;                                                                                              \n" \
+    "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
+    "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
+    "   {                                                                                                                           \n" \
+    "       if (site < offset)                                                                                                      \n" \
+    "       {                                                                                                                       \n" \
+    "           float other = resultScratch[site + offset];                                                                          \n" \
+    "           float mine  = resultScratch[site];                                                                                   \n" \
+    "           resultScratch[site] = mine + other;                                                                                 \n" \
+    "       }                                                                                                                       \n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "   }                                                                                                                           \n" \
+    "   if (localSite == 0) result_cache[site/BLOCK_SIZE] = resultScratch[0];                                                                   \n" \
+    "   /*                                                                                              \n" \
+    "   */                                                                                              \n" \
+    "}                                                                                                                              \n" \
+    "__kernel void ReductionKernel ( __global float* result_cache               // argument 1                                       \n" \
+    "                           )                                                                                                   \n" \
+    "{                                                                                                                              \n" \
+    "   int localSite = get_local_id(1);                                                                                                \n" \
+    "   /*                                                                                              \n" \
+    "   if (get_global_id(0) != 0) return;                                                                                                     \n" \
+    "   if (get_block_id(1) != 0) return;                                                                                                     \n" \
+    "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
+    "   resultScratch[localSite] = result_cache[localSite];                                     \n" \
+    "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
+    "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
+    "   {                                                                                                                           \n" \
+    "       if (site < offset)                                                                                                      \n" \
+    "       {                                                                                                                       \n" \
+    "           float other = resultScratch[site + offset];                                                                         \n" \
+    "           float mine  = resultScratch[site];                                                                                  \n" \
+    "           resultScratch[site]  = mine + other;                                                                                 \n" \
+    "       }                                                                                                                       \n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
+    "   }                                                                                                                           \n" \
+    "   if (localSite == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
+    "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "\n"; 
-    
+// TODO: result_cache size can be reduced to siteCount/BLOCK_SIZE
     cpMLProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&program_source,
                                           NULL, &ciErr1);
     if (ciErr1 != CL_SUCCESS)
@@ -844,47 +653,6 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-/*
-    cpLeafProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&leaf_source,
-                                            NULL, &ciErr1);
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    cpInternalProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&internal_source,
-                                            NULL, &ciErr1);
-    
-    //printf("clCreateProgramWithSource...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    cpAmbigProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&ambig_source,
-                                            NULL, &ciErr1);
-    //cpAmbigProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&ambigOLD_source,
-    //                                      NULL, &ciErr1);
-    
-    //printf("clCreateProgramWithSource...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    cpResultProgram = clCreateProgramWithSource(cxGPUContext, 1, (const char**)&result_source,
-                                            NULL, &ciErr1);
-    
-    //printf("clCreateProgramWithSource...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateProgramWithSource, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-*/
     
     ciErr1 = clBuildProgram(cpMLProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     if (ciErr1 != CL_SUCCESS)
@@ -907,95 +675,6 @@ int _OCLEvaluator::setupContext(void)
         Cleanup(EXIT_FAILURE);
     }
 
-/*
-    //ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, NULL, NULL, NULL);
-    ciErr1 = clBuildProgram(cpLeafProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("%i\n", ciErr1); //prints "1"
-        switch(ciErr1)
-        {
-            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
-            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
-            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
-            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
-            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
-            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
-            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
-            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
-            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-            default: printf("Strange error\n"); //This is printed
-        }
-        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    ciErr1 = clBuildProgram(cpAmbigProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("%i\n", ciErr1); //prints "1"
-        switch(ciErr1)
-        {
-            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
-            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
-            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
-            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
-            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
-            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
-            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
-            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
-            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-            default: printf("Strange error\n"); //This is printed
-        }
-        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    //ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, NULL, NULL, NULL);
-    ciErr1 = clBuildProgram(cpInternalProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("%i\n", ciErr1); //prints "1"
-        switch(ciErr1)
-        {
-            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
-            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
-            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
-            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
-            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
-            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
-            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
-            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
-            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-            default: printf("Strange error\n"); //This is printed
-        }
-        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    //ciErr1 = clBuildProgram(cpResultProgram, 1, &cdDevice, NULL, NULL, NULL);
-    ciErr1 = clBuildProgram(cpResultProgram, 1, &cdDevice, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("%i\n", ciErr1); //prints "1"
-        switch(ciErr1)
-        {
-            case   CL_INVALID_PROGRAM: printf("CL_INVALID_PROGRAM\n"); break;
-            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;
-            case   CL_INVALID_DEVICE: printf("CL_INVALID_DEVICE\n"); break;
-            case   CL_INVALID_BINARY: printf("CL_INVALID_BINARY\n"); break; 
-            case   CL_INVALID_BUILD_OPTIONS: printf("CL_INVALID_BUILD_OPTIONS\n"); break;
-            case   CL_COMPILER_NOT_AVAILABLE: printf("CL_COMPILER_NOT_AVAILABLE\n"); break;
-            case   CL_BUILD_PROGRAM_FAILURE: printf("CL_BUILD_PROGRAM_FAILURE\n"); break;
-            case   CL_INVALID_OPERATION: printf("CL_INVALID_OPERATION\n"); break;
-            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-            default: printf("Strange error\n"); //This is printed
-        }
-        printf("Error in clBuildProgram, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-    //printf("clBuildProgram...\n"); 
-*/
     
     // Shows the log
     char* build_log;
@@ -1003,28 +682,9 @@ int _OCLEvaluator::setupContext(void)
     // First call to know the proper size
     clGetProgramBuildInfo(cpMLProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
     build_log = new char[log_size+1];   
-/*  clGetProgramBuildInfo(cpLeafProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-    build_log = new char[log_size+1];   
-    clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-    build_log = new char[log_size+1];   
-    clGetProgramBuildInfo(cpAmbigProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-    build_log = new char[log_size+1];   
-    clGetProgramBuildInfo(cpResultProgram, cdDevice, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-    build_log = new char[log_size+1];   
-*/
     // Second call to get the log
     clGetProgramBuildInfo(cpMLProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
     build_log[log_size] = '\0';
-/*
-    clGetProgramBuildInfo(cpLeafProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
-    build_log[log_size] = '\0';
-    clGetProgramBuildInfo(cpInternalProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
-    build_log[log_size] = '\0';
-    clGetProgramBuildInfo(cpAmbigProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
-    build_log[log_size] = '\0';
-    clGetProgramBuildInfo(cpResultProgram, cdDevice, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
-    build_log[log_size] = '\0';
-*/
     printf("%s", build_log);
     delete[] build_log;
     
@@ -1078,36 +738,13 @@ int _OCLEvaluator::setupContext(void)
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-/*
-    ckLeafKernel = clCreateKernel(cpLeafProgram, "LeafKernel", &ciErr1);
-    printf("clCreateKernel (LeafKernel)...\n"); 
+    ckReductionKernel = clCreateKernel(cpMLProgram, "ReductionKernel", &ciErr1);
+    printf("clCreateKernel (ReductionKernel)...\n"); 
     if (ciErr1 != CL_SUCCESS)
     {
         printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
         Cleanup(EXIT_FAILURE);
     }
-    ckAmbigKernel = clCreateKernel(cpAmbigProgram, "AmbigKernel", &ciErr1);
-    printf("clCreateKernel (AmbigKernel)...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-    ckInternalKernel = clCreateKernel(cpInternalProgram, "InternalKernel", &ciErr1);
-    printf("clCreateKernel (InternalKernel)...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-    ckResultKernel = clCreateKernel(cpResultProgram, "ResultKernel", &ciErr1);
-    printf("clCreateKernel (ResultKernel)...\n"); 
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("Error in clCreateKernel, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-*/
 
     size_t maxKernelSize;
     ciErr1 = clGetKernelWorkGroupInfo(ckLeafKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
@@ -1122,6 +759,9 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 = clGetKernelWorkGroupInfo(ckResultKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
                              sizeof(size_t), &maxKernelSize, NULL);
     printf("Max Result Kernel Work Group Size: %i \n", maxKernelSize);
+    ciErr1 = clGetKernelWorkGroupInfo(ckReductionKernel, cdDevice, CL_KERNEL_WORK_GROUP_SIZE, 
+                             sizeof(size_t), &maxKernelSize, NULL);
+    printf("Max Reduction Kernel Work Group Size: %i \n", maxKernelSize);
     
     long tempLeafState = 1;
     long tempSiteCount = siteCount;
@@ -1190,6 +830,7 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= clSetKernelArg(ckResultKernel, 7, sizeof(cl_float), (void*)&tempScalar);
     ciErr1 |= clSetKernelArg(ckResultKernel, 8, sizeof(cl_long), (void*)&tempCharCount);
 
+    ciErr1 |= clSetKernelArg(ckReductionKernel, 0, sizeof(cl_mem), (void*)&cmResult_cache);
 
     //printf("clSetKernelArg 0 - 12...\n\n"); 
     if (ciErr1 != CL_SUCCESS)
@@ -1201,47 +842,6 @@ int _OCLEvaluator::setupContext(void)
     // --------------------------------------------------------
     // Start Core sequence... copy input data to GPU, compute, copy results back
     // Asynchronous write of data to GPU device
-/*
-    ciErr1 = clEnqueueWriteBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-                sizeof(cl_float)*roundCharacters*siteCount*flatNodes.lLength, node_cache, 
-                0, NULL, NULL);
-
-    if (ciErr1 != CL_SUCCESS)
-    {
-        printf("%i\n", ciErr1); //prints "1"
-        switch(ciErr1)
-        {
-            case   CL_INVALID_COMMAND_QUEUE: printf("CL_INVALID_COMMAND_QUEUE\n"); break;
-            case   CL_INVALID_CONTEXT: printf("CL_INVALID_CONTEXT\n"); break;
-            case   CL_INVALID_MEM_OBJECT: printf("CL_INVALID_MEM_OBJECT\n"); break;
-            case   CL_INVALID_VALUE: printf("CL_INVALID_VALUE\n"); break;   
-            case   CL_INVALID_EVENT_WAIT_LIST: printf("CL_INVALID_EVENT_WAIT_LIST\n"); break;
-                //          case   CL_MISALIGNED_SUB_BUFFER_OFFSET: printf("CL_MISALIGNED_SUB_BUFFER_OFFSET\n"); break;
-                //          case   CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST: printf("CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST\n"); break;
-            case   CL_MEM_OBJECT_ALLOCATION_FAILURE: printf("CL_MEM_OBJECT_ALLOCATION_FAILURE\n"); break;
-            case   CL_OUT_OF_RESOURCES: printf("CL_OUT_OF_RESOURCES\n"); break;
-            case   CL_OUT_OF_HOST_MEMORY: printf("CL_OUT_OF_HOST_MEMORY\n"); break;
-            default: printf("Strange error\n"); //This is printed
-        }
-        printf("Error in clEnqueueWriteBuffer, Line %u in file %s !!!\n\n", __LINE__, __FILE__);
-        Cleanup(EXIT_FAILURE);
-    }
-
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodRes_cache, CL_FALSE, 0,
-                sizeof(clfp)*roundUpToNextPowerOfTwo(nodeResCount), nodRes_cache, 0, NULL, NULL);
-
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmNodFlag_cache, CL_FALSE, 0,
-                sizeof(cl_long)*roundUpToNextPowerOfTwo(nodeFlagCount), nodFlag_cache, 0, NULL, NULL);
-    
-    for (int i = 0; i < siteCount; i++)
-        ((float*)result_cache)[i] = 0.0;
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
-                sizeof(cl_float)*siteCount*roundCharacters, root_cache, 0, NULL, NULL);
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
-                sizeof(cl_int)*siteCount*roundCharacters, root_scalings, 0, NULL, NULL);
-    ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
-                sizeof(cl_float)*siteCount, result_cache, 0, NULL, NULL);
- */   
     ciErr1 |= clEnqueueWriteBuffer(cqCommandQueue, cmFreq_cache, CL_FALSE, 0,
                 sizeof(cl_int)*siteCount, freq_cache, 0, NULL, NULL);
     printf("clEnqueueWriteBuffer (root_cache, etc.)..."); 
@@ -1454,6 +1054,8 @@ double _OCLEvaluator::oclmain(void)
     }
     ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
         szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
+    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckReductionKernel, 2, NULL,
+        szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
    
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1483,48 +1085,9 @@ double _OCLEvaluator::oclmain(void)
     }
     // Synchronous/blocking read of results, and check accumulated errors
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
-            sizeof(cl_float)*siteCount, result_cache, 0,
-            NULL, NULL);
-/*
-    ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmNode_cache, CL_FALSE, 0,
-            sizeof(cl_float)*flatNodes.lLength*siteCount*roundCharacters, node_cache, 0,
-            NULL,NULL);
-    
-    ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmroot_cache, CL_FALSE, 0,
-            sizeof(cl_float)*roundCharacters*siteCount, root_cache, 0,
-            NULL, NULL);
-    ciErr1 |= clEnqueueReadBuffer(cqCommandQueue, cmroot_scalings, CL_FALSE, 0,
-            sizeof(cl_int)*roundCharacters*siteCount, root_scalings, 0,
+            sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
             NULL, NULL);
 
-    printf("ResultCache: ");
-    for (int i = 0; i < siteCount; i++)
-    {
-        printf(" %g", ((float*)result_cache)[i]);
-    }
-    printf("\n");
-    printf("iNodeCache: ");
-    for (int i = 0; i < (flatNodes.lLength)*roundCharacters*siteCount; i++)
-    {
-        if (i%(roundCharacters*siteCount) == 0) printf("NEWNODE \n");
-        printf(" %g", ((float*)node_cache)[i]);
-    }
-    printf("\n");
-
-    for (int i = 0; i < (flatNodes.lLength); i++)
-    {
-        printf("NEWNODE");
-        for (int k = 0; k < siteCount; k++)
-        {
-            for (int j = 0; j < roundCharacters; j++)
-            {
-                printf(" %g", ((float*)node_cache)[i*roundCharacters*siteCount + k*roundCharacters + j]);
-            }
-            printf("\n");
-        }
-    }
-    printf("\n");
-*/
 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1550,57 +1113,8 @@ double _OCLEvaluator::oclmain(void)
     
     
     clFinish(cqCommandQueue);
-/*
-    int* rootScalings = root_scalings;
-    double rootVals[alphabetDimension*siteCount];
-
-    //printf("rootCache: \n");
-    //printf("rootScalings: \n");
-    //#pragma omp parallel for
-    for (int site = 0; site < siteCount; site++)
-    {
-        for (int pChar = 0; pChar < alphabetDimension; pChar++)
-        {
-            double scalingMul = pow(scalar, -rootScalings[site*roundCharacters+pChar]);
-            double mantissa = ((float*)root_cache)[site*roundCharacters+pChar];
-            rootVals[site*alphabetDimension + pChar] = mantissa*scalingMul;
-            //printf("%i ", rootScalings[site*roundCharacters +pChar]);
-            //rootVals[site*alphabetDimension + pChar] = mantissa;
-// TODO: fix this, it might work just fine but bad numbers were going through it
-        //  if (mantissa < 0) mantissa *= -1;
-            //printf("%g ", ((float*)root_cache)[site*roundCharacters+pChar]);
-        }
-    }
-    //printf("\n");
-    //printf("resultList: \n");
-    //printf("rootConditionals: \n");
-    double resultList[siteCount];
-    //#pragma omp parallel for
-    for (int siteID = 0; siteID < siteCount; siteID++)
-    {
-        double accumulator = 0.;
-        for (int p = 0; p < alphabetDimension; p++)
-        {
-            accumulator += rootVals[siteID*alphabetDimension + p] * theProbs[p];
-            //printf("%g ", rootVals[siteID*alphabetDimension+p]);
-        }
-    //  printf("\n");
-        resultList[siteID] = log(accumulator) * theFrequencies[siteID];
-        //if (resultList[siteID] < -20000)
-            //printf("Accumulator: %g", accumulator);
-        //printf("%g ", resultList[siteID]);
-    }
-    //printf("\n");
-
-    double result = 0.0;
-    int i;
-    //#pragma omp parallel for reduction (+:result) schedule(static)
-    for (i = 0; i < siteCount; i++)
-    {
-        result += resultList[i];
-    }
-    */
     
+/*
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &queueEnd);
     queueSecs += (queueEnd.tv_sec - queueStart.tv_sec)+(queueEnd.tv_nsec - queueStart.tv_nsec)/BILLION;
@@ -1617,8 +1131,19 @@ double _OCLEvaluator::oclmain(void)
     mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
 #endif
     //printf("! ");
-    return oResult;
     //return result;
+    printf("Result_Cache: \n");
+    for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
+        printf("%g ", ((float*)result_cache)[i]);
+    printf("\n\n");
+    printf("result: %g", oResult);
+    return oResult;
+*/
+    for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
+        printf("%g ", ((float*)result_cache)[i]);
+    printf("\n\n");
+    printf("result: %g\n", (double)((float*)result_cache)[0]);
+    return (double)((float*)result_cache)[0];
 }
 
 
