@@ -602,11 +602,10 @@ int _OCLEvaluator::setupContext(void)
     "       {                                                                                                                           \n" \
     "           acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
     "       }                                                                                                                           \n" \
-    "       //resultScratch[localSite] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
-    "       result_cache[site] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "       resultScratch[localSite] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
+    "       //result_cache[site] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
     "       site += get_local_size(0)*get_local_size(1);                                                                            \n" \
     "   }                                                                                                                           \n" \
-    "   /*                                                                                              \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
@@ -620,6 +619,7 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
     "   if (localSite == 0) result_cache[get_group_id(1)] = resultScratch[0];                                                                   \n" \
+    "   /*                                                                                              \n" \
     "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "__kernel void ReductionKernel ( __global float* result_cache               // argument 1                                       \n" \
@@ -627,24 +627,26 @@ int _OCLEvaluator::setupContext(void)
     "{                                                                                                                              \n" \
     "   if (get_group_id(0) != 0) return;                                                                                                     \n" \
     "   if (get_group_id(1) != 0) return;                                                                                                     \n" \
-    "   /*                                                                                              \n" \
     "   int groupDim = get_local_size(0)*get_local_size(1);                                                                         \n" \
-    "   int groupNum = get_local_id(1)*get_local_size(1)+get_local_id(0);                                                           \n" \
+    "   int groupNum = get_local_id(1)*get_local_size(0)+get_local_id(0);                                                           \n" \
     "   __local float resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[groupNum] = result_cache[groupNum];                                     \n" \
+    "   result_cache[groupNum] = 0.f;                                     \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
-    "   for (int offset = groupDim/2; offset > 0; offset >>= 1)                                                            \n" \
+    "   for (int offset = groupDim/2; offset > 1; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
     "       if (groupNum < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
     "           float other = resultScratch[groupNum + offset];                                                                         \n" \
     "           float mine  = resultScratch[groupNum];                                                                                  \n" \
     "           resultScratch[groupNum]  = mine + other;                                                                                 \n" \
+    "           resultScratch[groupNum + offset]  = 0.f;                                                                                 \n" \
     "       }                                                                                                                       \n" \
-    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
-    "   }                                                                                                                           \n" \
-    "   if (groupNum == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
+    "   /*                                                                                              \n" \
     "   */                                                                                              \n" \
+    "   }                                                                                                                           \n" \
+    "   //if (groupNum == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
+    "   result_cache[groupNum] = resultScratch[groupNum];                                     \n" \
     "}                                                                                                                              \n" \
     "\n"; 
 // TODO: result_cache size can be reduced to siteCount/BLOCK_SIZE
@@ -1086,8 +1088,11 @@ double _OCLEvaluator::oclmain(void)
         Cleanup(EXIT_FAILURE);
     }
     // Synchronous/blocking read of results, and check accumulated errors
+    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
+     //       sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
+      //      NULL, NULL);
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
-            sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
+            sizeof(cl_float)*2, result_cache, 0,
             NULL, NULL);
 
 
@@ -1123,10 +1128,12 @@ double _OCLEvaluator::oclmain(void)
 #endif
     double oResult = 0.0;
     //#pragma omp parallel for reduction (+:oResult) schedule(static)
-    for (int i = 0; i < siteCount; i++)
-    {
-        oResult += ((float*)result_cache)[i];
-    }
+    //for (int i = 0; i < siteCount; i++)
+    //{
+     //   oResult += ((float*)result_cache)[i];
+    //}
+    oResult = ((float*)result_cache)[0];
+    oResult += ((float*)result_cache)[1];
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &mainEnd);
     mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
