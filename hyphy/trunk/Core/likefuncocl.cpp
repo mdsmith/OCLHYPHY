@@ -631,21 +631,23 @@ int _OCLEvaluator::setupContext(void)
     "   int groupNum = get_local_id(1)*get_local_size(0)+get_local_id(0);                                                           \n" \
     "   __local float resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[groupNum] = result_cache[groupNum];                                     \n" \
-    "   result_cache[groupNum] = 0.f;                                     \n" \
+    "   //result_cache[groupNum] = 0.f;                                     \n" \
+    "   /*                                                                                              \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   for (int offset = groupDim/2; offset > 1; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
+    "   //int offset = groupDim/2;                                                            \n" \
     "       if (groupNum < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
     "           float other = resultScratch[groupNum + offset];                                                                         \n" \
     "           float mine  = resultScratch[groupNum];                                                                                  \n" \
     "           resultScratch[groupNum]  = mine + other;                                                                                 \n" \
-    "           resultScratch[groupNum + offset]  = 0.f;                                                                                 \n" \
+    "           //resultScratch[groupNum + offset]  = 0.f;                                                                                 \n" \
     "       }                                                                                                                       \n" \
-    "   /*                                                                                              \n" \
-    "   */                                                                                              \n" \
+    "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   }                                                                                                                           \n" \
     "   //if (groupNum == 0) result_cache[0] = resultScratch[0];                                                                   \n" \
+    "   */                                                                                              \n" \
     "   result_cache[groupNum] = resultScratch[groupNum];                                     \n" \
     "}                                                                                                                              \n" \
     "\n"; 
@@ -1088,12 +1090,14 @@ double _OCLEvaluator::oclmain(void)
         Cleanup(EXIT_FAILURE);
     }
     // Synchronous/blocking read of results, and check accumulated errors
-    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
-     //       sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
-      //      NULL, NULL);
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
+            sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
+            NULL, NULL);
+/*
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
             sizeof(cl_float)*2, result_cache, 0,
             NULL, NULL);
+*/
 
 
     if (ciErr1 != CL_SUCCESS)
@@ -1128,24 +1132,26 @@ double _OCLEvaluator::oclmain(void)
 #endif
     double oResult = 0.0;
     //#pragma omp parallel for reduction (+:oResult) schedule(static)
-    //for (int i = 0; i < siteCount; i++)
-    //{
-     //   oResult += ((float*)result_cache)[i];
-    //}
+    for (int i = 0; i < siteCount; i++)
+    {
+        oResult += ((float*)result_cache)[i];
+    }
+/*
     oResult = ((float*)result_cache)[0];
     oResult += ((float*)result_cache)[1];
+*/
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &mainEnd);
     mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
 #endif
     //printf("! ");
     //return result;
-/*
     printf("Result_Cache: \n");
     for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
         printf("%g ", ((float*)result_cache)[i]);
     printf("\n\n");
     printf("result: %g", oResult);
+/*
 */
     return oResult;
 /*
