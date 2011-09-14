@@ -61,7 +61,7 @@ typedef cl_float clfp;
 #define OCLTARGET " #define BLOCK_SIZE 1 \n"
 #endif
 
-#define __GPUResults__
+//#define __GPUResults__
 #ifdef __GPUResults__ 
 #define OCLGPUResults " #define __GPUResults__ \n"
 #else
@@ -627,10 +627,12 @@ int _OCLEvaluator::setupContext(void)
     "           acc += root_cache[site*roundCharacters + rChar] * prob_cache[rChar];                                                    \n" \
     "       }                                                                                                                           \n" \
     "       //resultScratch[localSite] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
-    "       resultScratch[localSite] += (log(acc)-scale*log(scalar)) * freq_cache[site];                                     \n" \
+    "       //resultScratch[localSite] += (log(acc)-scale*log(scalar)) * freq_cache[site];                                     \n" \
+    "       result_cache[site] += (log(acc)-scale*log(scalar)) * freq_cache[site];                                     \n" \
     "       site += get_local_size(0)*get_local_size(1);                                                                            \n" \
     "   }                                                                                                                           \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
+    "   /*                                                                                              \n" \
     "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
     "       if (localSite < offset)                                                                                                      \n" \
@@ -643,6 +645,7 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
     "   if (localSite == 0) result_cache[get_group_id(1)] = resultScratch[0];                                                                   \n" \
+    "   */                                                                                              \n" \
     "   #else                                                                                               \n" \
     "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
     "   resultScratch[localSite] = 0.0;                                                          \n" \
@@ -659,13 +662,12 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   #endif                                                                                               \n" \
-    "   /*                                                                                              \n" \
-    "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "__kernel void ReductionKernel ( __global double* result_cache               // argument 1                                       \n" \
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
     "   int groupNum = get_local_id(0);                                                           \n" \
+    "   /*                                                                                              \n" \
     "   __local double resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[groupNum] = result_cache[groupNum];                                     \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
@@ -688,7 +690,7 @@ int _OCLEvaluator::setupContext(void)
     "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   }                                                                                                                           \n" \
     "   result_cache[groupNum] = resultScratch[groupNum];                                     \n" \
-    "   /*                                                                                              \n" \
+    "   //                                                                                              \n" \
     "   if (get_group_id(0) != 0) return;                                                                                                     \n" \
     "   if (get_group_id(1) != 0) return;                                                                                                     \n" \
     "   int groupDim = get_local_size(0)*get_local_size(1);                                                                         \n" \
@@ -1171,8 +1173,11 @@ double _OCLEvaluator::oclmain(void)
     // Synchronous/blocking read of results, and check accumulated errors
 #ifdef __GPUResults_
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
-            sizeof(cl_double)*1, result_cache, 0,
+            sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
             NULL, NULL);
+    //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
+     //       sizeof(cl_double)*1, result_cache, 0,
+      //      NULL, NULL);
 #else
     //ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
      //       sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
@@ -1210,7 +1215,15 @@ double _OCLEvaluator::oclmain(void)
     double oResult = 0.0;
     
 #ifdef __GPUResults__
-    oResult = ((double*)result_cache)[0];
+    for (int i = 0; i < siteCount; i++)
+    {
+        oResult += ((double*)result_cache)[i];
+    }
+    //oResult = ((double*)result_cache)[0];
+    printf("Result_Cache: \n");
+    for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
+        printf("%4.10g ", ((double*)result_cache)[i]);
+    printf("\n\n");
 #else
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &queueEnd);
@@ -1222,11 +1235,11 @@ double _OCLEvaluator::oclmain(void)
     {
         oResult += ((float*)result_cache)[i];
     }
-/*
     printf("Result_Cache: \n");
     for (int i = 0; i < roundUpToNextPowerOfTwo(siteCount); i++)
-        printf("%4.10g ", ((double*)result_cache)[i]);
+        printf("%4.10g ", ((float*)result_cache)[i]);
     printf("\n\n");
+/*
 */
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &mainEnd);
