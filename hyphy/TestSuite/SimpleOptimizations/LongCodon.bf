@@ -703,7 +703,7 @@ ENCenv_tree.Node16.synRate=0.2090364485974809;
 ENCenv_tree.JKT5441.synRate=0.1602421666351167;
 ENCenv_tree.UNKNOWN37.synRate=0.163549182945119;
 DataSet replicate_0 = ReadDataFile(USE_NEXUS_FILE_DATA);
-DataSetFilter replicate_0_part = CreateFilter(replicate_0,3,"0-4499","13-22,10-12,0-9","TAA,TAG,TGA");
+DataSetFilter replicate_0_part = CreateFilter(replicate_0,3,"0-999","13-22,10-12,0-9","TAA,TAG,TGA");
 ASSUME_REVERSIBLE_MODELS=0;
 LikelihoodFunction replicate_0_LF = (replicate_0_part,ENCenv_tree);
 
