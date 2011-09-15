@@ -616,17 +616,14 @@ int _OCLEvaluator::setupContext(void)
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
     "   // shrink the work group to sites, rather than sites x characters                                                           \n" \
-    "   if (get_global_id(0) != 0) return;                                                         \n" \
-    "   int site = get_global_id(1);                                                                                                \n" \
-    "   result_cache[site] = 0.0;                                                                                                \n" \
-    "   if (get_group_id(1) >= get_local_size(0)*get_local_size(1)) return;                                                         \n" \
-    "   int localSite = get_local_id(1);                                                                                                \n" \
     "   //#ifdef __GPUResults__                                                                                               \n" \
-    "   __local fpoint resultScratch[BLOCK_SIZE];                                                          \n" \
+    "   int site = get_global_id(0);                                                                                                \n" \
+    "   result_cache[site] = 0.0;                                                                                                \n" \
+    "   int localSite = get_local_id(0);                                                                                                \n" \
+    "   __local fpoint resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[localSite] = 0.0;                                                          \n" \
     "   while (site < sites)                                                                                                     \n" \
     "   {                                                                                                                           \n" \
-    "       //float acc = 0.0;                                                                                                           \n" \
     "       fpoint acc = 0.0;                                                                                                           \n" \
     "       int scale = root_scalings[site*roundCharacters];                                                                            \n" \
     "       for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
@@ -636,10 +633,10 @@ int _OCLEvaluator::setupContext(void)
     "       //resultScratch[localSite] += (native_log(acc)-scale*native_log(scalar)) * freq_cache[site];                                     \n" \
     "       resultScratch[localSite] += (log(acc)-scale*log(scalar)) * freq_cache[site];                                     \n" \
     "       //result_cache[site] += (log(acc)-scale*log(scalar)) * freq_cache[site];                                     \n" \
-    "       site += get_local_size(0)*get_local_size(1);                                                                            \n" \
+    "       site += get_global_size(0);                                                                            \n" \
     "   }                                                                                                                           \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
-    "   for (int offset = get_local_size(1)/2; offset > 0; offset >>= 1)                                                            \n" \
+    "   for (int offset = get_local_size(0)/2; offset > 0; offset >>= 1)                                                            \n" \
     "   {                                                                                                                           \n" \
     "       if (localSite < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
@@ -650,11 +647,13 @@ int _OCLEvaluator::setupContext(void)
     "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
     "   }                                                                                                                           \n" \
     "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
-    "   if (localSite == 0) result_cache[get_group_id(1)] = resultScratch[0];                                                                   \n" \
+    "   if (localSite == 0) result_cache[get_group_id(0)] = resultScratch[0];                                                                   \n" \
     "   /*                                                                                              \n" \
     "   #else                                                                                               \n" \
-    "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
-    "   resultScratch[localSite] = 0.0;                                                          \n" \
+    "   if (get_global_id(0) != 0) return;                                                         \n" \
+    "   int site = get_global_id(1);                                                                                                \n" \
+    "   result_cache[site] = 0.0;                                                                                                \n" \
+    "   if (get_group_id(1) >= get_local_size(0)*get_local_size(1)) return;                                                         \n" \
     "   while (site < sites)                                                                                                     \n" \
     "   {                                                                                                                           \n" \
     "       float acc = 0.0;                                                                                                           \n" \
@@ -1137,14 +1136,21 @@ double _OCLEvaluator::oclmain(void)
             Cleanup(EXIT_FAILURE);
         }
     }
-    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
-        szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
 #ifdef __GPUResults__
 	size_t szGlobalWorkSize2 = 256;
-	size_t szLocalWorkSize2 = 256;
+	size_t szLocalWorkSize2 = 256*16;
+	//size_t szLocalWorkSize2 = roundUpToNextPowerOfTwo(siteCount);
+	//size_t szLocalWorkSize2 = MIN(roundUpToNextPowerOfTwo(siteCount), 256*256);
+	size_t szGlobalWorkSize3 = 256;
+	size_t szLocalWorkSize3 = 256;
 
-    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckReductionKernel, 1, NULL,
+    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 1, NULL,
         &szGlobalWorkSize2, &szLocalWorkSize2, 0, NULL, NULL); 
+    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckReductionKernel, 1, NULL,
+        &szGlobalWorkSize3, &szLocalWorkSize3, 0, NULL, NULL); 
+#else
+    ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
+        szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
 #endif
 /*
 */
@@ -1233,11 +1239,11 @@ double _OCLEvaluator::oclmain(void)
     {
         oResult += ((fpoint*)result_cache)[i];
     }
-	/*
     printf("Result_Cache: \n");
     for (int i = 0; i < siteCount; i++)
         printf("%4.10g ", ((fpoint*)result_cache)[i]);
     printf("\n\n");
+	/*
     for (int i = 0; i < siteCount; i++)
     {
         oResult += ((float*)result_cache)[i];
