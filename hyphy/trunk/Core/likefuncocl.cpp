@@ -26,10 +26,12 @@
 #include <OpenCL/OpenCL.h>
 typedef float fpoint;
 typedef cl_float clfp;
-//#define FLOATPREC "typedef float fpoint; \n"
+#define FLOATPREC "typedef float fpoint; \n"
 //#define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
+#define PRAGMADEF " \n"
 //#pragma OPENCL EXTENSION cl_khr_fp64: enable
 #elif defined(NVIDIA)
+#define __GPUResults__
 #define __OCLPOSIX__
 #include <oclUtils.h>
 typedef double fpoint;
@@ -38,13 +40,14 @@ typedef cl_double clfp;
 #define PRAGMADEF "#pragma OPENCL EXTENSION cl_khr_fp64: enable \n"
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
 #elif defined(AMD)
+#define __GPUResults__
 #define __OCLPOSIX__
 #include <CL/opencl.h>
 typedef double fpoint;
 typedef cl_double clfp;
 #define FLOATPREC "typedef double fpoint; \n"
 #define PRAGMADEF "#pragma OPENCL EXTENSION cl_amd_fp64: enable \n"
-//#pragma OPENCL EXTENSION cl_amd_fp64: enable
+#pragma OPENCL EXTENSION cl_amd_fp64: enable
 #elif defined(FLOAT)
 #include <CL/opencl.h>
 typedef float fpoint;
@@ -61,15 +64,11 @@ typedef cl_float clfp;
 #define OCLTARGET " #define BLOCK_SIZE 1 \n"
 #endif
 
-#define __GPUResults__
 #ifdef __GPUResults__ 
 #define OCLGPUResults " #define __GPUResults__ \n"
 #else
 #define OCLGPUResults " \n"
 #endif
-/*
-*/
-//#define OCLGPUResults " \n"
 
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
@@ -471,9 +470,6 @@ int _OCLEvaluator::setupContext(void)
     "                               float uFlowThresh                           // argument 13                                      \n" \
     "                               )                                                                                               \n" \
     "{                                                                                                                              \n" \
-    "   // block index                                                                                                              \n" \
-    "   int bx = get_group_id(0);                                                                                                   \n" \
-    "   int by = get_group_id(1);                                                                                                   \n" \
     "   // thread index                                                                                                             \n" \
     "   int tx = get_local_id(0);                                                                                                   \n" \
     "   int ty = get_local_id(1);                                                                                                   \n" \
@@ -616,7 +612,7 @@ int _OCLEvaluator::setupContext(void)
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
     "   // shrink the work group to sites, rather than sites x characters                                                           \n" \
-    "   //#ifdef __GPUResults__                                                                                               \n" \
+    "   #ifdef __GPUResults__                                                                                               \n" \
     "   int site = get_global_id(0);                                                                                                \n" \
     "   result_cache[site] = 0.0;                                                                                                \n" \
     "   int localSite = get_local_id(0);                                                                                                \n" \
@@ -648,7 +644,6 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
     "   if (localSite == 0) result_cache[get_group_id(0)] = resultScratch[0];                                                                   \n" \
-    "   /*                                                                                              \n" \
     "   #else                                                                                               \n" \
     "   if (get_global_id(0) != 0) return;                                                         \n" \
     "   int site = get_global_id(1);                                                                                                \n" \
@@ -667,6 +662,7 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
     "   #endif                                                                                               \n" \
+    "   /*                                                                                              \n" \
     "   */                                                                                              \n" \
     "}                                                                                                                              \n" \
     "__kernel void ReductionKernel ( __global double* result_cache               // argument 1                                       \n" \
@@ -1138,7 +1134,7 @@ double _OCLEvaluator::oclmain(void)
     }
 #ifdef __GPUResults__
 	size_t szGlobalWorkSize2 = 256;
-	size_t szLocalWorkSize2 = 256*16;
+	size_t szLocalWorkSize2 = 256;
 	//size_t szLocalWorkSize2 = roundUpToNextPowerOfTwo(siteCount);
 	//size_t szLocalWorkSize2 = MIN(roundUpToNextPowerOfTwo(siteCount), 256*256);
 	size_t szGlobalWorkSize3 = 256;
@@ -1239,10 +1235,12 @@ double _OCLEvaluator::oclmain(void)
     {
         oResult += ((fpoint*)result_cache)[i];
     }
+#ifdef __VERBOSE__
     printf("Result_Cache: \n");
     for (int i = 0; i < siteCount; i++)
         printf("%4.10g ", ((fpoint*)result_cache)[i]);
     printf("\n\n");
+#endif
 	/*
     for (int i = 0; i < siteCount; i++)
     {
