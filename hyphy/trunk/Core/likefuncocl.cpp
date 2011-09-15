@@ -62,14 +62,14 @@ typedef cl_float clfp;
 #endif
 
 #define __GPUResults__
-/*
 #ifdef __GPUResults__ 
 #define OCLGPUResults " #define __GPUResults__ \n"
 #else
 #define OCLGPUResults " \n"
 #endif
+/*
 */
-#define OCLGPUResults " \n"
+//#define OCLGPUResults " \n"
 
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
@@ -187,14 +187,14 @@ int _OCLEvaluator::setupContext(void)
     freq_cache      = (void*)malloc(sizeof(cl_int)*siteCount);
     root_cache      = (void*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
     root_scalings   = (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
-/*
 #ifdef __GPUResults__
     result_cache    = (void*)malloc(sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount));
 #else
     result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
 #endif
+/*
 */
-    result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
+//    result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
     model           = (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1));
 
     //printf("Allocated all of the arrays!\n");
@@ -358,7 +358,6 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= ciErr2;
     //cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
      //               sizeof(cl_float)*siteCount, NULL, &ciErr2);
-/*
 #ifdef __GPUResults__
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
                     sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
@@ -366,9 +365,10 @@ int _OCLEvaluator::setupContext(void)
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
                     sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
 #endif
-*/
+/*
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
                     sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
+*/
     ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -605,11 +605,11 @@ int _OCLEvaluator::setupContext(void)
     "}                                                                                                                              \n" \
     "__kernel void ResultKernel (   __global int* freq_cache,                   // argument 0                                       \n" \
     "                               __global float* prob_cache,                 // argument 1                                       \n" \
-    "   //#ifdef __GPUResults__                                                                                               \n" \
-    "    //                           __global double* result_cache,               // argument 2                                       \n" \
-    "   //#else                                                                                               \n" \
+    "   #ifdef __GPUResults__                                                                                               \n" \
+    "                               __global double* result_cache,               // argument 2                                       \n" \
+    "   #else                                                                                               \n" \
     "                               __global float* result_cache,               // argument 2                                       \n" \
-    "   //#endif                                                                                               \n" \
+    "   #endif                                                                                               \n" \
     "                               __global float* root_cache,                 // argument 3                                       \n" \
     "                               __global int* root_scalings,                // argument 4                                       \n" \
     "                               long sites,                                 // argument 5                                       \n" \
@@ -1148,7 +1148,6 @@ double _OCLEvaluator::oclmain(void)
     }
     ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckResultKernel, 2, NULL,
         szGlobalWorkSize, szLocalWorkSize, 0, NULL, NULL); 
-/*
 #ifdef __GPUResults__
 	size_t szGlobalWorkSize2 = 256;
 	size_t szLocalWorkSize2 = 256;
@@ -1156,6 +1155,7 @@ double _OCLEvaluator::oclmain(void)
     ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckReductionKernel, 1, NULL,
         &szGlobalWorkSize2, &szLocalWorkSize2, 0, NULL, NULL); 
 #endif
+/*
 */
 	/*
     ciErr1 |= clEnqueueNDRangeKernel(cqCommandQueue, ckReductionKernel, 2, NULL,
@@ -1242,6 +1242,17 @@ double _OCLEvaluator::oclmain(void)
     for (int i = 0; i < siteCount; i++)
         printf("%4.10g ", ((double*)result_cache)[i]);
     printf("\n\n");
+	/*
+    for (int i = 0; i < siteCount; i++)
+    {
+        oResult += ((float*)result_cache)[i];
+    }
+    //oResult = ((double*)result_cache)[0];
+    printf("Result_Cache: \n");
+    for (int i = 0; i < siteCount; i++)
+        printf("%4.10g ", ((float*)result_cache)[i]);
+    printf("\n\n");
+	*/
 #else
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &queueEnd);
