@@ -187,14 +187,14 @@ int _OCLEvaluator::setupContext(void)
     freq_cache      = (void*)malloc(sizeof(cl_int)*siteCount);
     root_cache      = (void*)malloc(sizeof(cl_float)*siteCount*roundCharacters);
     root_scalings   = (void*)malloc(sizeof(cl_int)*siteCount*roundCharacters);
+/*
 #ifdef __GPUResults__
     result_cache    = (void*)malloc(sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount));
 #else
     result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
 #endif
-/*
 */
-//    result_cache    = (void*)malloc(sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount));
+    result_cache    = (void*)malloc(sizeof(clfp)*roundUpToNextPowerOfTwo(siteCount));
     model           = (void*)malloc(sizeof(cl_float)*roundCharacters*roundCharacters*(flatParents.lLength-1));
 
     //printf("Allocated all of the arrays!\n");
@@ -358,6 +358,7 @@ int _OCLEvaluator::setupContext(void)
     ciErr1 |= ciErr2;
     //cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
      //               sizeof(cl_float)*siteCount, NULL, &ciErr2);
+/*
 #ifdef __GPUResults__
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
                     sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
@@ -365,10 +366,9 @@ int _OCLEvaluator::setupContext(void)
     cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
                     sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
 #endif
-/*
-    cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
-                    sizeof(cl_float)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
 */
+    cmResult_cache = clCreateBuffer(cxGPUContext, CL_MEM_WRITE_ONLY,
+                    sizeof(clfp)*roundUpToNextPowerOfTwo(siteCount), NULL, &ciErr2);
     ciErr1 |= ciErr2;
 //    printf("clCreateBuffer...\n");
     if (ciErr1 != CL_SUCCESS)
@@ -416,6 +416,7 @@ int _OCLEvaluator::setupContext(void)
     const char *program_source = "\n" \
     "" OCLTARGET                                                                                                                        \
     "" PRAGMADEF                                                                                                                        \
+    "" FLOATPREC                                                                                                                        \
     "" OCLGPUResults                                                                                                                    \
     " #define MIN(a,b) ((a)>(b)?(b):(a))                                                                                            \n" \
     "__kernel void LeafKernel(  __global float* node_cache,                 // argument 0                                           \n" \
@@ -605,11 +606,7 @@ int _OCLEvaluator::setupContext(void)
     "}                                                                                                                              \n" \
     "__kernel void ResultKernel (   __global int* freq_cache,                   // argument 0                                       \n" \
     "                               __global float* prob_cache,                 // argument 1                                       \n" \
-    "   #ifdef __GPUResults__                                                                                               \n" \
-    "                               __global double* result_cache,               // argument 2                                       \n" \
-    "   #else                                                                                               \n" \
-    "                               __global float* result_cache,               // argument 2                                       \n" \
-    "   #endif                                                                                               \n" \
+    "                               __global fpoint* result_cache,              // argument 2                                       \n" \
     "                               __global float* root_cache,                 // argument 3                                       \n" \
     "                               __global int* root_scalings,                // argument 4                                       \n" \
     "                               long sites,                                 // argument 5                                       \n" \
@@ -619,25 +616,18 @@ int _OCLEvaluator::setupContext(void)
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
     "   // shrink the work group to sites, rather than sites x characters                                                           \n" \
-    "   //if (get_global_id(0) != 0) return;                                                         \n" \
+    "   if (get_global_id(0) != 0) return;                                                         \n" \
     "   int site = get_global_id(1);                                                                                                \n" \
-    "   //result_cache[site] = 0.0;                                                                                                \n" \
-    "       result_cache[site] = 3.0;                                                                                                \n" \
-    "   /*                                                                                              \n" \
-    "   while (site < sites)                                                                                                     \n" \
-    "   {                                                                                                                           \n" \
-    "       result_cache[301] += 1.0;                                                                                                \n" \
-    "       site += get_local_size(0)*get_local_size(1);                                                                            \n" \
-    "   }                                                                                                                           \n" \
+    "   result_cache[site] = 0.0;                                                                                                \n" \
     "   if (get_group_id(1) >= get_local_size(0)*get_local_size(1)) return;                                                         \n" \
     "   int localSite = get_local_id(1);                                                                                                \n" \
-    "   #ifdef __GPUResults__                                                                                               \n" \
-    "   __local double resultScratch[BLOCK_SIZE];                                                          \n" \
+    "   //#ifdef __GPUResults__                                                                                               \n" \
+    "   __local fpoint resultScratch[BLOCK_SIZE];                                                          \n" \
     "   resultScratch[localSite] = 0.0;                                                          \n" \
     "   while (site < sites)                                                                                                     \n" \
     "   {                                                                                                                           \n" \
     "       //float acc = 0.0;                                                                                                           \n" \
-    "       double acc = 0.0;                                                                                                           \n" \
+    "       fpoint acc = 0.0;                                                                                                           \n" \
     "       int scale = root_scalings[site*roundCharacters];                                                                            \n" \
     "       for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
     "       {                                                                                                                           \n" \
@@ -653,14 +643,15 @@ int _OCLEvaluator::setupContext(void)
     "   {                                                                                                                           \n" \
     "       if (localSite < offset)                                                                                                      \n" \
     "       {                                                                                                                       \n" \
-    "           double other = resultScratch[localSite + offset];                                                                          \n" \
-    "           double mine  = resultScratch[localSite];                                                                                   \n" \
+    "           fpoint other = resultScratch[localSite + offset];                                                                          \n" \
+    "           fpoint mine  = resultScratch[localSite];                                                                                   \n" \
     "           resultScratch[localSite] = mine+other;                                                                                 \n" \
     "       }                                                                                                                       \n" \
     "       barrier(CLK_LOCAL_MEM_FENCE);                                                                                           \n" \
     "   }                                                                                                                           \n" \
     "   // TODO: this would probably be faster if I saved them further apart to reduce bank conflicts                               \n" \
     "   if (localSite == 0) result_cache[get_group_id(1)] = resultScratch[0];                                                                   \n" \
+    "   /*                                                                                              \n" \
     "   #else                                                                                               \n" \
     "   __local float resultScratch[BLOCK_SIZE];                                                          \n" \
     "   resultScratch[localSite] = 0.0;                                                          \n" \
@@ -1189,6 +1180,7 @@ double _OCLEvaluator::oclmain(void)
         Cleanup(EXIT_FAILURE);
     }
     // Synchronous/blocking read of results, and check accumulated errors
+/*
 #ifdef __GPUResults_
     ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
             sizeof(cl_double)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
@@ -1205,6 +1197,10 @@ double _OCLEvaluator::oclmain(void)
             NULL, NULL);
 
 #endif
+*/
+    ciErr1 = clEnqueueReadBuffer(cqCommandQueue, cmResult_cache, CL_FALSE, 0,
+            sizeof(clfp)*roundUpToNextPowerOfTwo(siteCount), result_cache, 0,
+            NULL, NULL);
 
     if (ciErr1 != CL_SUCCESS)
     {
@@ -1232,17 +1228,16 @@ double _OCLEvaluator::oclmain(void)
     clFinish(cqCommandQueue);
     double oResult = 0.0;
     
-#ifdef __GPUResults__
+//#ifdef __GPUResults__
     for (int i = 0; i < siteCount; i++)
     {
-        oResult += ((double*)result_cache)[i];
+        oResult += ((fpoint*)result_cache)[i];
     }
-    //oResult = ((double*)result_cache)[0];
+	/*
     printf("Result_Cache: \n");
     for (int i = 0; i < siteCount; i++)
-        printf("%4.10g ", ((double*)result_cache)[i]);
+        printf("%4.10g ", ((fpoint*)result_cache)[i]);
     printf("\n\n");
-	/*
     for (int i = 0; i < siteCount; i++)
     {
         oResult += ((float*)result_cache)[i];
@@ -1250,9 +1245,11 @@ double _OCLEvaluator::oclmain(void)
     //oResult = ((double*)result_cache)[0];
     printf("Result_Cache: \n");
     for (int i = 0; i < siteCount; i++)
-        printf("%4.10g ", ((float*)result_cache)[i]);
+        printf("%4.10g ", ((fpoint*)result_cache)[i]);
     printf("\n\n");
+    oResult = ((fpoint*)result_cache)[0];
 	*/
+/*
 #else
 #ifdef __OCLPOSIX__
     clock_gettime(CLOCK_MONOTONIC, &queueEnd);
@@ -1273,6 +1270,7 @@ double _OCLEvaluator::oclmain(void)
     mainSecs += (mainEnd.tv_sec - mainStart.tv_sec)+(mainEnd.tv_nsec - mainStart.tv_nsec)/BILLION;
 #endif
 #endif
+*/
 /*
     //#pragma omp parallel for reduction (+:oResult) schedule(static)
     for (int i = 0; i < siteCount; i++)
