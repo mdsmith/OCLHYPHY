@@ -614,12 +614,12 @@ int _OCLEvaluator::setupContext(void)
     "   // shrink the work group to sites, rather than sites x characters                                                           \n" \
     "   #ifdef __GPUResults__                                                                                               \n" \
     "   int site = get_global_id(0);                                                                                                \n" \
-    "   result_cache[site] = 0.0;                                                                                                \n" \
     "   int localSite = get_local_id(0);                                                                                                \n" \
     "   __local fpoint resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[localSite] = 0.0;                                                          \n" \
     "   while (site < sites)                                                                                                     \n" \
     "   {                                                                                                                           \n" \
+    "       result_cache[site] = 0.0;                                                                                                \n" \
     "       fpoint acc = 0.0;                                                                                                           \n" \
     "       int scale = root_scalings[site*roundCharacters];                                                                            \n" \
     "       for (int rChar = 0; rChar < characters; rChar++)                                                                            \n" \
@@ -669,7 +669,6 @@ int _OCLEvaluator::setupContext(void)
     "                           )                                                                                                   \n" \
     "{                                                                                                                              \n" \
     "   int groupNum = get_local_id(0);                                                           \n" \
-    "   /*                                                                                              \n" \
     "   __local double resultScratch[BLOCK_SIZE*BLOCK_SIZE];                                                          \n" \
     "   resultScratch[groupNum] = result_cache[groupNum];                                     \n" \
     "   barrier(CLK_LOCAL_MEM_FENCE);                                                                                               \n" \
@@ -693,6 +692,7 @@ int _OCLEvaluator::setupContext(void)
     "   }                                                                                                                           \n" \
     "   result_cache[groupNum] = resultScratch[groupNum];                                     \n" \
     "   //                                                                                              \n" \
+    "   /*                                                                                              \n" \
     "   if (get_group_id(0) != 0) return;                                                                                                     \n" \
     "   if (get_group_id(1) != 0) return;                                                                                                     \n" \
     "   int groupDim = get_local_size(0)*get_local_size(1);                                                                         \n" \
