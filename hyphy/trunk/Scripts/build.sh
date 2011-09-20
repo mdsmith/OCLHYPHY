@@ -177,11 +177,11 @@ then
 	if [ $sysName = "Darwin" ]
 	then
         TARGET_NAME="HYPHYMP";
-        LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -framework OpenCL -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/lib -L"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/obj/release ";
+        LINKER_FLAGS=$CURL_LINKER_LIBS" -lm -lpthread -fopenmp -ldl -framework OpenCL ";
         echo "+----------------------------------------------------------------------+"
         echo "|Building a multi-threaded HYPHYKernelMP with setconcurrency and OpenCL|"
         echo "+----------------------------------------------------------------------+"
-        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL -D NVIDIA -I"${HOME}"/NVIDIA_GPU_Computing_SDK/OpenCL/common/inc -I"${HOME}"/NVIDIA_GPU_Computing_SDK/shared/inc "
+        COMPILER_FLAGS=$COMPILER_FLAGS" -D __MP__ -D __MP2__ -fopenmp -D _HY_GPU_EXAMPLE_CALCULATOR -D MDSOCL "
 	elif [ $gpuType = "AMD" ]
     then
         TARGET_NAME="HYPHYMP";
